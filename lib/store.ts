@@ -134,6 +134,7 @@ export type Store = {
   listSessionsForThread(threadId: string): Session[];
   endSession(id: string, by: "user" | "agent"): void;
   setDeliveryMode(id: string, mode: DeliveryMode): void;
+  updateRoles(id: string, roles: { viewThreadId: string; replyThreadId: string }): void;
   addRevision(sessionId: string, sha256: string, sizeBytes: number, trigger: Revision["trigger"]): Revision;
   latestRevision(sessionId: string): Revision | null;
   listRevisions(sessionId: string): Revision[];
@@ -325,6 +326,9 @@ export function openStore(
   const setDeliveryMode = db.prepare<[DeliveryMode, number, string]>(
     "UPDATE sessions SET delivery_mode = ?, updated_at = ? WHERE id = ?",
   );
+  const updateRoles = db.prepare<[string, string, number, string]>(
+    "UPDATE sessions SET view_thread_id = ?, reply_thread_id = ?, updated_at = ? WHERE id = ?",
+  );
 
   const insertRevision = db.prepare<[string, string, string, number, number, Revision["trigger"]]>(
     `INSERT INTO revisions (id, session_id, sha256, size_bytes, recorded_at, trigger)
@@ -434,6 +438,9 @@ export function openStore(
     },
     setDeliveryMode(id, mode) {
       setDeliveryMode.run(mode, Date.now(), id);
+    },
+    updateRoles(id, roles) {
+      updateRoles.run(roles.viewThreadId, roles.replyThreadId, Date.now(), id);
     },
     addRevision(sessionId, sha256, sizeBytes, trigger) {
       const revision: Revision = {

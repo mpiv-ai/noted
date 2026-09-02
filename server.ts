@@ -15,7 +15,7 @@ type Runtime = {
   dataDir: string;
 };
 
-type ChangeReason = "revision" | "queue" | "batch" | "reply" | "ended";
+type ChangeReason = "revision" | "queue" | "batch" | "reply" | "ended" | "roles";
 
 const MIME_TYPES: Record<string, string> = {
   ".css": "text/css",
@@ -151,6 +151,7 @@ export async function openSessionCore(runtime: Runtime, input: OpenSessionInput)
     runtime.dataDir,
   );
   let session = runtime.store.findOpenSession(input.threadId, artifact.absolutePath);
+  let rolesChanged = false;
   if (session === null) {
     const ended = runtime.store.listSessionsForThread(input.threadId).find((candidate) =>
       candidate.producerThreadId === input.threadId
@@ -170,9 +171,25 @@ export async function openSessionCore(runtime: Runtime, input: OpenSessionInput)
       absolutePath: artifact.absolutePath,
       sourceKind: artifact.sourceKind,
     });
+  } else if (input.view !== undefined || input.replyTo !== undefined) {
+    const roles = {
+      viewThreadId: input.view !== undefined ? viewThreadId : session.viewThreadId,
+      replyThreadId: input.replyTo !== undefined ? replyThreadId : session.replyThreadId,
+    };
+    if (
+      roles.viewThreadId !== session.viewThreadId
+      || roles.replyThreadId !== session.replyThreadId
+    ) {
+      runtime.store.updateRoles(session.id, roles);
+      session = requireSession(runtime.store, session.id);
+      rolesChanged = true;
+    }
   }
 
   const { payload } = await sessionPayload(runtime, session.id, "open");
+  if (rolesChanged) {
+    publish(runtime, session.id, payload.revision.id, "roles");
+  }
   if (session.viewThreadId === input.threadId && session.sourceKind !== "host") {
     await runtime.bb.sdk.threads.open({
       threadId: session.viewThreadId,
