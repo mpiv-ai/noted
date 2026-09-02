@@ -67,13 +67,19 @@ async function captureRevision(
   session: Session,
   trigger: Revision["trigger"],
 ): Promise<{ html: string; revision: Revision; changed: boolean }> {
+  const latest = runtime.store.latestRevision(session.id);
   const file = await runtime.bb.sdk.files.read({
     hostId: session.hostId ?? undefined,
     path: session.absolutePath,
+  }).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/does not exist|ENOENT|not found|404/i.test(message)) throw error;
+    runtime.store.endSession(session.id, "agent");
+    publish(runtime, session.id, latest?.id ?? "", "ended");
+    throw new Error("artifact file is missing; session ended");
   });
   const html = decodeText(file.content, file.contentEncoding);
   const sha256 = createHash("sha256").update(html).digest("hex");
-  const latest = runtime.store.latestRevision(session.id);
   if (latest?.sha256 === sha256) return { html, revision: latest, changed: false };
   const revision = runtime.store.addRevision(
     session.id,

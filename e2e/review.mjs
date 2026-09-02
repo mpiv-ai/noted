@@ -12,6 +12,7 @@ const serverUrl = requiredEnv("BB_SERVER_URL").replace(/\/$/, "");
 const projectId = requiredEnv("BB_PROJECT_ID");
 const environmentId = requiredEnv("BB_ENVIRONMENT_ID");
 const spawnedThreads = [];
+const openedSessionIds = [];
 const bbOptions = { encoding: "utf8", env: process.env };
 
 let browser;
@@ -155,9 +156,11 @@ async function spawnThread(role) {
     "--environment",
     environmentId,
     "--provider",
-    "claude-code",
+    "codex",
     "--model",
-    "claude-haiku-4-5-20251001",
+    "gpt-5.6-luna",
+    "--reasoning-level",
+    "low",
     "--permission-mode",
     "full",
     "--visibility",
@@ -200,6 +203,9 @@ async function openSession(input) {
   if (!result?.session?.id) {
     throw new Error(`openSession did not return a session: ${JSON.stringify(result)}`);
   }
+  if (!openedSessionIds.includes(result.session.id)) {
+    openedSessionIds.push(result.session.id);
+  }
   return result.session.id;
 }
 
@@ -230,6 +236,25 @@ function rewriteRevisedPlan() {
 async function cleanup() {
   const failures = [];
   await browser?.close().catch((error) => failures.push(`browser: ${errorDetail(error)}`));
+  for (const openedSessionId of openedSessionIds) {
+    try {
+      await callRpc("endSession", { sessionId: openedSessionId, by: "user" });
+    } catch (error) {
+      let alreadyEnded = false;
+      for (const threadId of spawnedThreads) {
+        try {
+          const result = await callRpc("listSessions", { threadId });
+          alreadyEnded ||= result.sessions.some(
+            (session) => session.id === openedSessionId && session.status === "ended",
+          );
+        } catch {
+        }
+      }
+      if (!alreadyEnded) {
+        failures.push(`end session ${openedSessionId}: ${errorDetail(error)}`);
+      }
+    }
+  }
   for (const threadId of spawnedThreads) {
     try {
       bb(["bb", "thread", "stop", threadId]);
@@ -242,11 +267,23 @@ async function cleanup() {
       failures.push(`archive ${threadId}: ${errorDetail(error)}`);
     }
   }
+  let openSessionCount = 0;
+  for (const threadId of spawnedThreads) {
+    try {
+      const result = await callRpc("listSessions", { threadId });
+      openSessionCount += result.sessions.filter((session) => session.status === "open").length;
+    } catch (error) {
+      failures.push(`list sessions ${threadId}: ${errorDetail(error)}`);
+    }
+  }
+  if (openSessionCount > 0) {
+    failures.push(`${openSessionCount} sessions remain open`);
+  }
   rmSync(workDir, { recursive: true, force: true });
   if (failures.length > 0) {
     throw new Error(failures.join("; "));
   }
-  return `${spawnedThreads.length} threads archived; ${artifactPath} removed`;
+  return `${openedSessionIds.length} sessions ended, ${openSessionCount} open`;
 }
 
 try {
@@ -339,28 +376,27 @@ try {
   });
 
   await step("open-cross-thread", async () => {
-    await callRpc("endSession", { sessionId, by: "user" });
-    sessionId = await openSession({
+    const originalSessionId = sessionId;
+    const result = await callRpc("openSession", {
       threadId: producerId,
       path: artifactPath,
       view: viewerId,
-      reopen: true,
     });
+    if (result?.session?.id !== originalSessionId) {
+      throw new Error(`openSession replaced ${originalSessionId} with ${result?.session?.id}`);
+    }
+    if (result.session.viewThreadId !== viewerId) {
+      throw new Error(`openSession kept viewer ${result.session.viewThreadId}`);
+    }
+    sessionId = result.session.id;
+    if (!openedSessionIds.includes(sessionId)) {
+      openedSessionIds.push(sessionId);
+    }
     viewerPage = await browser.newPage({ viewport: { width: 1500, height: 950 } });
     await viewerPage.goto(threadRoute(viewerId));
     const banner = `Review requested: plan.html from ${producerId}`;
     const requestBanner = viewerPage.getByText(banner, { exact: true });
-    try {
-      await requestBanner.waitFor({ state: "visible", timeout: 30_000 });
-    } catch {
-      sessionId = await openSession({
-        threadId: producerId,
-        path: artifactPath,
-        view: viewerId,
-        reopen: true,
-      });
-      await requestBanner.waitFor({ state: "visible", timeout: 30_000 });
-    }
+    await requestBanner.waitFor({ state: "visible", timeout: 30_000 });
     const openButton = viewerPage.getByRole("button", { name: "Open", exact: true });
     await openButton.waitFor({ state: "visible", timeout: 30_000 });
     await openButton.click();
