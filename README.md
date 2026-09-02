@@ -6,7 +6,7 @@ It is built on [Lavish](https://github.com/kunchenguid/lavish-axi) by Kun Chen, 
 
 ## Status
 
-Pre-release. v0.1 is HTML review: open, annotate, send in queue or steer mode, revision capture, `bb noted` CLI, save-to-KB. Whiteboards follow in v0.2. See `docs/` once the design and plan land in the repo.
+v0.1 is HTML review: open, annotate, send in queue or steer mode, revision capture, the `bb noted` CLI, and save-to-KB. The review loop works in both the macOS bb app connected to a remote server and the browser through bb Connect. Whiteboards follow in v0.2.
 
 ## Install
 
@@ -45,4 +45,4 @@ bb plugin dev .    # rebuild and reload on save
 
 ## License
 
-MIT. See `LICENSE` and `THIRD_PARTY_NOTICES.md`.
+MIT. See `LICENSE`, `THIRD_PARTY_NOTICES.md`, and `CHANGELOG.md`.
