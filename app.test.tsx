@@ -36,19 +36,17 @@ describe("Noted review tab", () => {
     const action = app.threadPanelActions.find((a) => a.id === "review")!;
     const rpc = {
       getSession: () => payload,
-      queuePrompt: (i: any) => { calls.push("queue:" + i.selector); return { id: "q1", sessionId: "s1", revisionId: "r1", uid: i.uid, prompt: i.prompt, selector: i.selector, tag: i.tag, text: i.text, target: null, createdAt: 1 }; },
+      queuePrompt: (i: any) => { calls.push("queue:" + i.selector + ":" + i.prompt); return { id: "q1", sessionId: "s1", revisionId: "r1", uid: i.uid, prompt: i.prompt, selector: i.selector, tag: i.tag, text: i.text, target: i.target ?? null, createdAt: 1 }; },
       send: (i: any) => { calls.push("send:" + i.mode + ":" + i.endSession); return { batch: { id: "b1", sessionId: "s1", revisionId: "r1", items: [], messageText: "Noted: feedback on plan.html (revision 1, 1 items)", mode: "queue-if-active", delivery: "sent", error: null, sentAt: 2 } }; },
     };
     const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s1" } }, { rpc, context: { threadId: "t1", projectId: null } });
     const frame = (await slot.findByTitle("Noted: plan.html")) as HTMLIFrameElement;
     await act(async () => {});
-    act(() => { window.dispatchEvent(new MessageEvent("message", { data: { type: "lavish:queuePrompt", artifact_load_token: "r1", uid: "u1", selector: "#a", tag: "p", text: "Hi" }, source: frame.contentWindow })); });
-    const box = await slot.findByLabelText("Annotation for #a");
-    fireEvent.change(box, { target: { value: "shorter" } });
-    fireEvent.click(slot.getByRole("button", { name: "Queue" }));
+    act(() => { window.dispatchEvent(new MessageEvent("message", { data: { type: "lavish:queuePrompt", artifact_load_token: "r1", prompt: { uid: "u1", prompt: "shorter", selector: "#a", tag: "p", text: "Hi", target: { kind: "table-cell", row: "A" } } }, source: frame.contentWindow })); });
     await slot.findByText("shorter");
+    expect(slot.queryByLabelText(/Annotation for/)).toBeNull();
     fireEvent.click(slot.getByRole("button", { name: "Send to agent" }));
-    await waitFor(() => expect(calls).toEqual(["queue:#a", "send:undefined:false"]));
+    await waitFor(() => expect(calls).toEqual(["queue:#a:shorter", "send:undefined:false"]));
     await slot.findByText(/Noted: feedback on plan.html/);
   });
 });

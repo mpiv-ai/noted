@@ -6,7 +6,6 @@ import type { z } from "zod";
 import { useArtifactBridge } from "../../hooks/useArtifactBridge";
 import type { rpcContract } from "../../lib/rpc";
 
-import { AnnotationCard } from "./AnnotationCard";
 import { ArtifactFrame } from "./ArtifactFrame";
 import { Composer } from "./Composer";
 import type { DeliveryMode } from "./Composer";
@@ -19,13 +18,6 @@ type ReviewState =
   | { status: "loading" }
   | { status: "loaded"; payload: SessionPayload }
   | { status: "error"; message: string };
-type Annotation = {
-  uid: string;
-  selector: string;
-  tag: string;
-  text: string;
-  target: unknown;
-};
 type RetryState = { input: SendInput; message: string };
 
 function getSessionId(params: PluginThreadPanelProps["params"]): string | null {
@@ -53,7 +45,6 @@ export default function ReviewTab({ params }: PluginThreadPanelProps) {
   const [mode, setMode] = useState<DeliveryMode>("default");
   const [sending, setSending] = useState(false);
   const [handled, setHandled] = useState(0);
-  const [card, setCard] = useState<Annotation | null>(null);
   const [retry, setRetry] = useState<RetryState | null>(null);
 
   const loadSession = useCallback(() => {
@@ -100,20 +91,46 @@ export default function ReviewTab({ params }: PluginThreadPanelProps) {
   }, [loadedPayload]);
 
   useEffect(() => {
-    if (bridge.events.length <= handled) {
+    if (bridge.events.length <= handled || sessionId === null) {
       return;
     }
 
     const event = bridge.events[handled];
     if (event?.data.type === "lavish:queuePrompt") {
       const { data } = event;
-      setCard({
-        uid: data.uid === null || data.uid === undefined ? String(Date.now()) : String(data.uid),
-        selector: String(data.selector),
-        tag: String(data.tag),
-        text: String(data.text),
-        target: data.target,
-      });
+      const item = data.prompt;
+      if (
+        typeof item === "object" &&
+        item !== null &&
+        "selector" in item &&
+        typeof item.selector === "string" &&
+        "tag" in item &&
+        typeof item.tag === "string" &&
+        "text" in item &&
+        typeof item.text === "string" &&
+        "prompt" in item &&
+        typeof item.prompt === "string"
+      ) {
+        const uid =
+          "uid" in item && item.uid !== null && item.uid !== undefined
+            ? String(item.uid)
+            : String(Date.now());
+        const target = "target" in item ? item.target : undefined;
+        void rpc
+          .call("queuePrompt", {
+            sessionId,
+            uid,
+            prompt: item.prompt,
+            selector: item.selector,
+            tag: item.tag,
+            text: item.text,
+            ...(target !== undefined && target !== null ? { target } : {}),
+          })
+          .then((prompt) => {
+            setQueued((current) => [...current, prompt]);
+            bridge.post({ type: "lavish:setAnnotationMode", enabled: true });
+          });
+      }
     }
     setHandled(bridge.events.length);
   }, [bridge.events, handled]);
@@ -184,33 +201,6 @@ export default function ReviewTab({ params }: PluginThreadPanelProps) {
         title={`Noted: ${loadedPayload.displayPath}`}
       />
       <div className="max-h-[45%] space-y-3 overflow-auto border-t p-3">
-        {card ? (
-          <AnnotationCard
-            selector={card.selector}
-            tag={card.tag}
-            text={card.text}
-            onQueue={(prompt) => {
-              void rpc
-                .call("queuePrompt", {
-                  sessionId,
-                  uid: card.uid,
-                  prompt,
-                  selector: card.selector,
-                  tag: card.tag,
-                  text: card.text,
-                  ...(card.target !== null && card.target !== undefined
-                    ? { target: card.target }
-                    : {}),
-                })
-                .then((item) => {
-                  setQueued((current) => [...current, item]);
-                  setCard(null);
-                  bridge.post({ type: "lavish:setAnnotationMode", enabled: true });
-                });
-            }}
-            onCancel={() => setCard(null)}
-          />
-        ) : null}
         <QueueList
           items={queued}
           onUpdate={(id, prompt) => {
