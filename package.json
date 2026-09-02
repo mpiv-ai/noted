@@ -54,6 +54,7 @@
     "vitest": "^3.2.7",
     "jsdom": "^30.0.1",
     "@testing-library/react": "^16.3.3",
+    "playwright": "1.62.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -81,6 +82,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "bb plugin build .",
+    "e2e": "node e2e/review.mjs",
     "check": "npm run typecheck && npm test && npm run build"
   },
   "files": [
