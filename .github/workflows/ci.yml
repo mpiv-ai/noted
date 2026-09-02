@@ -19,4 +19,4 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run check
+      - run: npx --yes --package bb-app@0.41.0 --call "npm run check"
