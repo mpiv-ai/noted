@@ -82,6 +82,7 @@ export const rpcContract = defineRpcContract({
     input: z.object({
       threadId: z.string(),
       path: z.string(),
+      source: z.enum(["workspace", "thread-storage", "host"]).optional(),
       view: z.string().optional(),
       replyTo: z.string().optional(),
       reopen: z.boolean().optional(),

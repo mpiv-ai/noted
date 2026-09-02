@@ -8,7 +8,7 @@ export default function HtmlOpener({ path, source, Original }: PluginFileOpenerP
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
   const [opening, setOpening] = useState(false);
-  const disabled = source.threadId === null || source.kind === "thread-storage";
+  const disabled = source.threadId === null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -19,7 +19,7 @@ export default function HtmlOpener({ path, source, Original }: PluginFileOpenerP
           title={disabled ? `Run bb noted open ${path} from the thread` : undefined}
           onClick={() => {
             const threadId = source.threadId;
-            if (threadId === null || source.kind === "thread-storage") {
+            if (threadId === null) {
               return;
             }
 
@@ -35,7 +35,7 @@ export default function HtmlOpener({ path, source, Original }: PluginFileOpenerP
                 );
                 const sessionId = existing
                   ? existing.id
-                  : (await rpc.call("openSession", { threadId, path })).session.id;
+                  : (await rpc.call("openSession", { threadId, path, source: source.kind })).session.id;
                 void navigate.openThreadPanel({
                   actionId: "review",
                   params: { sessionId },

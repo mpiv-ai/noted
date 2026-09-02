@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { dirname, extname, join, relative } from "node:path";
+import { dirname, extname, isAbsolute, join, relative } from "node:path";
 import type { BbPluginApi, PluginCliContext, PluginCliResult, PluginRpcHandlers } from "@get-bb/plugin-sdk";
 import { transformForExport, transformForReview } from "./lib/html-transform";
 import { buildCompanionNote } from "./lib/kb-note";
@@ -143,10 +143,13 @@ async function sessionPayload(runtime: Runtime, sessionId: string, trigger: Revi
 export async function openSessionCore(runtime: Runtime, input: OpenSessionInput) {
   const viewThreadId = await resolveRole(runtime.bb.sdk, input.threadId, input.view);
   const replyThreadId = await resolveRole(runtime.bb.sdk, input.threadId, input.replyTo);
+  const path = input.source === "thread-storage" && !isAbsolute(input.path)
+    ? join(runtime.dataDir, "thread-storage", input.threadId, input.path)
+    : input.path;
   const artifact = await resolveArtifact(
     runtime.bb.sdk,
     input.threadId,
-    input.path,
+    path,
     undefined,
     runtime.dataDir,
   );

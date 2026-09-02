@@ -69,4 +69,16 @@ describe("Noted banner and opener", () => {
     await waitFor(() => expect(slot.inspection.rpcCalls.some((c) => c.method === "openSession")).toBe(true));
     await waitFor(() => expect(slot.inspection.navigateCalls).toContainEqual({ method: "openThreadPanel", options: expect.objectContaining({ actionId: "review", params: { sessionId: "s1" } }) }));
   });
+  it("file opener is enabled for a thread-storage file and reuses its open session", async () => {
+    const opener = app.fileOpeners.find((o) => o.id === "html")!;
+    const Original = () => <div>original preview</div>;
+    const open = { ...session, id: "s9", absolutePath: "/home/m/.bb/thread-storage/t1/noted-smoke/plan.html", sourceKind: "thread-storage" };
+    const slot = renderSlot(opener, { path: "noted-smoke/plan.html", source: { kind: "thread-storage", threadId: "t1", environmentId: null, projectId: "p1" }, Original }, { rpc: { listSessions: () => ({ sessions: [open] }), openSession: () => payload }, context: { threadId: "t1", projectId: "p1" } });
+    await slot.findByText("original preview");
+    const button = slot.getByRole("button", { name: "Review with Noted" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    fireEvent.click(button);
+    await waitFor(() => expect(slot.inspection.navigateCalls).toContainEqual({ method: "openThreadPanel", options: expect.objectContaining({ actionId: "review", params: { sessionId: "s9" } }) }));
+    expect(slot.inspection.rpcCalls.some((c) => c.method === "openSession")).toBe(false);
+  });
 });
