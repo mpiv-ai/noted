@@ -2,7 +2,7 @@
 
 Noted is built on [Lavish](https://github.com/kunchenguid/lavish-axi) by Kun Chen, MIT License, Copyright (c) Kun Chen.
 
-`vendor/lavish/` will contain unmodified files from `lavish-axi` v0.1.63 (`artifact-sdk.js`, `mermaid-node.js`, `table-cell.js`), added in the next change. The MIT license text below applies to them. Later releases that vendor Lavish's whiteboard bundle also inherit its bundled notices: `@excalidraw/excalidraw` (MIT, Excalidraw), `@excalidraw/mermaid-to-excalidraw` (MIT, Excalidraw), `mermaid` (MIT, Knut Sveidqvist), `react` and `react-dom` (MIT, Meta Platforms, Inc.).
+`vendor/lavish/` contains unmodified files from `lavish-axi` v0.1.63 (`artifact-sdk.js`, `mermaid-node.js`, `table-cell.js`). The MIT license text below applies to them. Later releases that vendor Lavish's whiteboard bundle also inherit its bundled notices: `@excalidraw/excalidraw` (MIT, Excalidraw), `@excalidraw/mermaid-to-excalidraw` (MIT, Excalidraw), `mermaid` (MIT, Knut Sveidqvist), `react` and `react-dom` (MIT, Meta Platforms, Inc.).
 
 ```
 Permission is hereby granted, free of charge, to any person obtaining a copy
