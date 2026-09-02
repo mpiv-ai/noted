@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 
@@ -24,9 +24,51 @@ describe("Noted review tab", () => {
   it("ignores messages that are not from its iframe or carry the wrong token", async () => {
     const action = app.threadPanelActions.find((a) => a.id === "review")!;
     const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s1" } }, { rpc: { getSession: () => payload }, context: { threadId: "t1", projectId: null } });
-    await slot.findByTitle("Noted: plan.html");
-    window.dispatchEvent(new MessageEvent("message", { data: { type: "lavish:queuePrompt", artifact_load_token: "r1", selector: "#a", tag: "p", text: "Hi" }, source: window }));
-    window.dispatchEvent(new MessageEvent("message", { data: { type: "lavish:queuePrompt", artifact_load_token: "wrong", selector: "#b", tag: "p", text: "Hi" }, source: (slot.getByTitle("Noted: plan.html") as HTMLIFrameElement).contentWindow }));
-    await waitFor(() => expect(slot.getByTestId("noted-events").children).toHaveLength(0));
+    const frame = (await slot.findByTitle("Noted: plan.html")) as HTMLIFrameElement;
+    await act(async () => {});
+    act(() => { window.dispatchEvent(new MessageEvent("message", { data: { type: "lavish:queuePrompt", artifact_load_token: "r1", selector: "#a", tag: "p", text: "Hi" }, source: window })); });
+    act(() => { window.dispatchEvent(new MessageEvent("message", { data: { type: "lavish:queuePrompt", artifact_load_token: "wrong", selector: "#b", tag: "p", text: "Hi" }, source: frame.contentWindow })); });
+    await act(async () => {});
+    expect(slot.queryByLabelText(/Annotation for/)).toBeNull();
+  });
+  it("queues an annotation from an iframe message and sends it", async () => {
+    const calls: string[] = [];
+    const action = app.threadPanelActions.find((a) => a.id === "review")!;
+    const rpc = {
+      getSession: () => payload,
+      queuePrompt: (i: any) => { calls.push("queue:" + i.selector); return { id: "q1", sessionId: "s1", revisionId: "r1", uid: i.uid, prompt: i.prompt, selector: i.selector, tag: i.tag, text: i.text, target: null, createdAt: 1 }; },
+      send: (i: any) => { calls.push("send:" + i.mode + ":" + i.endSession); return { batch: { id: "b1", sessionId: "s1", revisionId: "r1", items: [], messageText: "Noted: feedback on plan.html (revision 1, 1 items)", mode: "queue-if-active", delivery: "sent", error: null, sentAt: 2 } }; },
+    };
+    const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s1" } }, { rpc, context: { threadId: "t1", projectId: null } });
+    const frame = (await slot.findByTitle("Noted: plan.html")) as HTMLIFrameElement;
+    await act(async () => {});
+    act(() => { window.dispatchEvent(new MessageEvent("message", { data: { type: "lavish:queuePrompt", artifact_load_token: "r1", uid: "u1", selector: "#a", tag: "p", text: "Hi" }, source: frame.contentWindow })); });
+    const box = await slot.findByLabelText("Annotation for #a");
+    fireEvent.change(box, { target: { value: "shorter" } });
+    fireEvent.click(slot.getByRole("button", { name: "Queue" }));
+    await slot.findByText("shorter");
+    fireEvent.click(slot.getByRole("button", { name: "Send to agent" }));
+    await waitFor(() => expect(calls).toEqual(["queue:#a", "send:undefined:false"]));
+    await slot.findByText(/Noted: feedback on plan.html/);
+  });
+});
+
+describe("Noted banner and opener", () => {
+  it("shows the review banner in the viewer thread and opens the tab", async () => {
+    const banner = app.composerCustomizations.flatMap((c) => c.banners ?? []).find((b) => b.id === "review-requested")!;
+    const slot = renderSlot(banner, {}, { rpc: { listSessions: () => ({ sessions: [{ ...session, producerThreadId: "thr_loops", viewThreadId: "t1" }] }) }, composer: { scope: { kind: "thread", threadId: "t1" } } });
+    await slot.findByText(/Review requested: plan.html from thr_loops/);
+    fireEvent.click(slot.getByRole("button", { name: "Open" }));
+    expect(slot.inspection.navigateCalls).toContainEqual({ method: "openThreadPanel", options: expect.objectContaining({ actionId: "review", params: { sessionId: "s1" } }) });
+  });
+  it("file opener shows bb's preview with a Review with Noted button", async () => {
+    const opener = app.fileOpeners.find((o) => o.id === "html")!;
+    expect([...opener.extensions]).toEqual(["html", "htm"]);
+    const Original = () => <div>original preview</div>;
+    const slot = renderSlot(opener, { path: "plan.html", source: { kind: "workspace", threadId: "t1", environmentId: "e1", projectId: "p1" }, Original }, { rpc: { listSessions: () => ({ sessions: [] }), openSession: () => payload }, context: { threadId: "t1", projectId: "p1" } });
+    await slot.findByText("original preview");
+    fireEvent.click(slot.getByRole("button", { name: "Review with Noted" }));
+    await waitFor(() => expect(slot.inspection.rpcCalls.some((c) => c.method === "openSession")).toBe(true));
+    await waitFor(() => expect(slot.inspection.navigateCalls).toContainEqual({ method: "openThreadPanel", options: expect.objectContaining({ actionId: "review", params: { sessionId: "s1" } }) }));
   });
 });
