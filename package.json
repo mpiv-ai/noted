@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-noted",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "engines": {
     "bb": ">=0.40",
@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Noted",
-    "description": "Review HTML artifacts in the side panel, annotate, send feedback to the thread. Built on Lavish.",
+    "description": "Review and annotate HTML artifacts in the side panel, then send feedback to the thread. Built on Lavish.",
     "branding": {
       "icon": "MessageSquare"
     },
@@ -58,7 +58,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
-  "description": "Annotate agent-made HTML artifacts and whiteboards inside bb and send the feedback straight to the thread. Built on Lavish.",
+  "description": "Review and annotate agent-made HTML artifacts inside bb, then send feedback to the thread. Built on Lavish.",
   "license": "MIT",
   "keywords": [
     "bb",
@@ -97,6 +97,8 @@
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md"
   ]
 }
