@@ -1,10 +1,14 @@
 # Third-party notices
 
-Noted is built on [Lavish](https://github.com/kunchenguid/lavish-axi) by Kun Chen, MIT License, Copyright (c) Kun Chen.
+Noted v0.1.1 ships or bundles the following third-party software:
 
-`vendor/lavish/` contains unmodified files from `lavish-axi` v0.1.63 (`artifact-sdk.js`, `mermaid-node.js`, `table-cell.js`). The MIT license text below applies to them. Later releases that vendor Lavish's whiteboard bundle also inherit its bundled notices: `@excalidraw/excalidraw` (MIT, Excalidraw), `@excalidraw/mermaid-to-excalidraw` (MIT, Excalidraw), `mermaid` (MIT, Knut Sveidqvist), `react` and `react-dom` (MIT, Meta Platforms, Inc.).
+- Lavish `v0.1.63`, MIT License, Copyright (c) 2026 Kun Chen. `vendor/lavish/` contains unmodified copies of `artifact-sdk.js`, `mermaid-node.js`, and `table-cell.js` from source commit `ffd7aacff563b8bca09eb7ebfb17c14faeb968ce`.
+- Hugeicons free icons and the Hugeicons React renderer, MIT License, Copyright (c) 2025 Hugeicons.
+- Radix Primitives and transitive Radix packages, MIT License, Copyright (c) 2022 WorkOS.
+- Zod, MIT License, Copyright (c) 2025 Colin McDonnell.
 
-```
+The following MIT License terms apply to each component listed above:
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -22,4 +26,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-```
