@@ -113,7 +113,9 @@ async function transform(html: string, opts: TransformOptions): Promise<Transfor
 
   if (linked.length > 0 && opts.previewBaseUrl !== null) {
     const base = `<base href="${opts.previewBaseUrl}/">`;
-    result = /<head\b[^>]*>/i.test(result) ? result.replace(/<head\b[^>]*>/i, (head) => `${head}${base}`) : base + result;
+    if (!/<base\b[^>]*>/i.test(result)) {
+      result = /<head\b[^>]*>/i.test(result) ? result.replace(/<head\b[^>]*>/i, (head) => `${head}${base}`) : base + result;
+    }
   }
 
   if (opts.sdkScript) {

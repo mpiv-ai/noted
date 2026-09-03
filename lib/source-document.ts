@@ -46,7 +46,19 @@ export function isMarkdownPath(path: string): boolean {
   return MARKDOWN_EXTENSIONS.has(extname(path).toLowerCase());
 }
 
-export function sourceDocumentHtml(path: string, source: string): string {
+function escapeAttribute(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+export function sourceDocumentHtml(
+  path: string,
+  source: string,
+  options: { baseHref?: string | null } = {},
+): string {
   if (!isMarkdownPath(path)) {
     return source;
   }
@@ -55,12 +67,16 @@ export function sourceDocumentHtml(path: string, source: string): string {
     async: false,
     gfm: true,
   });
+  const baseHref = options.baseHref?.replace(/\/+$/, "");
+  const base = baseHref
+    ? `\n  <base href="${escapeAttribute(baseHref)}/">`
+    : "";
 
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">${base}
   <style>${MARKDOWN_STYLES}</style>
 </head>
 <body>

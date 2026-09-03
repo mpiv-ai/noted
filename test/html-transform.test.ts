@@ -31,6 +31,12 @@ describe("transformForReview", () => {
     expect(r.linked).toContain("style.css");
     expect(r.skipped).toEqual([]);
   });
+  it("does not add a duplicate preview base", async () => {
+    const documentWithBase = page.replace("<head>", '<head><base href="/already/">');
+    const r = await transformForReview(documentWithBase, { sdkScript: "<script>S</script>", readAsset, previewBaseUrl: "/api/v1/file-previews/abc", maxAssetBytes: 3 });
+    expect(r.srcdoc.match(/<base\b/g)).toHaveLength(1);
+    expect(r.srcdoc).toContain('<base href="/already/">');
+  });
   it("reports a skipped asset when over cap and no preview url", async () => {
     const r = await transformForReview(page, { sdkScript: "<script>S</script>", readAsset, previewBaseUrl: null, maxAssetBytes: 3 });
     expect(r.skipped.map((s) => s.path)).toEqual(["style.css", "pic.png", "app.js"]);

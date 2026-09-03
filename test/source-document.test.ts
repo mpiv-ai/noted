@@ -5,12 +5,15 @@ describe("sourceDocumentHtml", () => {
   it("renders GitHub-flavored Markdown as an annotation-ready HTML document", () => {
     const html = sourceDocumentHtml(
       "/repo/notes.md",
-      "# Plan\n\n- First\n- Second\n\n| Item | Owner |\n| --- | --- |\n| Ship | Michael |",
+      "# Plan\n\n- First\n- Second\n\n[Guide](docs/guide.md)\n\n| Item | Owner |\n| --- | --- |\n| Ship | Michael |",
+      { baseHref: "/api/v1/file-previews/review-root/" },
     );
 
     expect(html).toContain('data-noted-source="markdown"');
+    expect(html).toContain('<base href="/api/v1/file-previews/review-root/">');
     expect(html).toContain("<h1>Plan</h1>");
     expect(html).toContain("<li>First</li>");
+    expect(html).toContain('<a href="docs/guide.md">Guide</a>');
     expect(html).toContain("<table>");
     expect(html).not.toContain("# Plan");
   });
@@ -23,6 +26,6 @@ describe("sourceDocumentHtml", () => {
 
   it("passes HTML through unchanged", () => {
     const html = "<html><body><h1>Plan</h1></body></html>";
-    expect(sourceDocumentHtml("plan.html", html)).toBe(html);
+    expect(sourceDocumentHtml("plan.html", html, { baseHref: "/preview" })).toBe(html);
   });
 });

@@ -111,11 +111,13 @@ function assetReaderFor(runtime: Runtime, hostId: string | undefined, rootPath: 
 async function readAndTransform(runtime: Runtime, session: Session, trigger: Revision["trigger"]) {
   const captured = await captureRevision(runtime, session, trigger);
   const rootPath = dirname(session.absolutePath);
-  const html = sourceDocumentHtml(session.absolutePath, captured.html);
   const preview = await runtime.bb.sdk.files.createPreview({
     hostId: session.hostId ?? undefined,
     rootPath,
     ttlMs: 600_000,
+  });
+  const html = sourceDocumentHtml(session.absolutePath, captured.html, {
+    baseHref: preview.baseUrl,
   });
   const document = await transformForReview(html, {
     sdkScript: buildSdkScript({

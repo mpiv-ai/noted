@@ -15,7 +15,7 @@ describe("noted rpc", () => {
   });
   it("renders Markdown before injecting the annotation SDK", async () => {
     const h = host();
-    h.setContent("# Review notes\n\n- Keep this\n- Change that");
+    h.setContent("# Review notes\n\n- Keep this\n- Change that\n\n[Guide](docs/guide.md)");
     await plugin(h.bb);
 
     const result: any = await h.harness.behavior.callRpc("openSession", {
@@ -26,6 +26,8 @@ describe("noted rpc", () => {
     expect(result.displayPath).toBe("notes.md");
     expect(result.document.srcdoc).toContain("<h1>Review notes</h1>");
     expect(result.document.srcdoc).toContain("<li>Keep this</li>");
+    expect(result.document.srcdoc).toContain('<base href="/api/v1/file-previews/x/">');
+    expect(result.document.srcdoc).toContain('<a href="docs/guide.md">Guide</a>');
     expect(result.document.srcdoc).toContain('data-noted-source="markdown"');
     expect(result.document.srcdoc).toContain("<script>");
   });
