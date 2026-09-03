@@ -5,7 +5,7 @@ describe("sourceDocumentHtml", () => {
   it("renders GitHub-flavored Markdown as an annotation-ready HTML document", () => {
     const html = sourceDocumentHtml(
       "/repo/notes.md",
-      "# Plan\n\n- First\n- Second\n\n[Guide](assets/guide.md)\n\n[Home](../README.md)\n\n[Details](#details)\n\n<a id=\"details\"></a>\n\n<script>alert('no')</script>\n\n| Item | Owner |\n| --- | --- |\n| Ship | Michael |",
+      "# Plan\n\n- First\n- Second\n\n[Guide](assets/guide.md)\n\n[Home](../README.md)\n\n[Details](#details)\n\n## Details\n\n<script>alert('no')</script>\n\n| Item | Owner |\n| --- | --- |\n| Ship | Michael |",
       {
         previewBaseUrl: "/api/v1/file-previews/review-root/",
         sourceDirectory: "docs/reviews",
@@ -13,12 +13,12 @@ describe("sourceDocumentHtml", () => {
     );
 
     expect(html).toContain('data-noted-source="markdown"');
-    expect(html).toContain("<h1>Plan</h1>");
+    expect(html).toContain('<h1 id="plan">Plan</h1>');
     expect(html).toContain("<li>First</li>");
     expect(html).toContain('<a href="/api/v1/file-previews/review-root/docs/reviews/assets/guide.md">Guide</a>');
     expect(html).toContain('<a href="/api/v1/file-previews/review-root/docs/README.md">Home</a>');
     expect(html).toContain('<a href="#details">Details</a>');
-    expect(html).toContain('<a id="details"></a>');
+    expect(html).toContain('<h2 id="details">Details</h2>');
     expect(html).toContain("<table>");
     expect(html).not.toContain("# Plan");
     expect(html).not.toContain("<script");
@@ -42,6 +42,12 @@ describe("sourceDocumentHtml", () => {
     expect(isMarkdownPath("notes.MD")).toBe(true);
     expect(isMarkdownPath("notes.markdown")).toBe(true);
     expect(isMarkdownPath("notes.mdx")).toBe(false);
+  });
+
+  it("deduplicates GitHub-compatible heading IDs", () => {
+    const html = sourceDocumentHtml("notes.md", "## Details\n\n## Details");
+    expect(html).toContain('<h2 id="details">Details</h2>');
+    expect(html).toContain('<h2 id="details-1">Details</h2>');
   });
 
   it("passes HTML through unchanged", () => {

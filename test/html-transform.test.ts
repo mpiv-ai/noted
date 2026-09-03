@@ -6,6 +6,7 @@ const assets: Record<string, { bytes: Uint8Array; mime: string }> = {
   "style.css": { bytes: new TextEncoder().encode("h1{color:green}"), mime: "text/css" },
   "pic.png": { bytes: new Uint8Array([137, 80, 78, 71]), mime: "image/png" },
   "app.js": { bytes: new TextEncoder().encode("console.log(1)"), mime: "text/javascript" },
+  "my logo.png": { bytes: new Uint8Array([137, 80, 78, 71]), mime: "image/png" },
 };
 const readAsset = async (p: string) => assets[p] ?? null;
 
@@ -24,6 +25,19 @@ describe("transformForReview", () => {
     const r = await transformForReview(remote, { sdkScript: "<script>S</script>", readAsset, previewBaseUrl: null });
     expect(r.srcdoc).toContain('href="https://cdn.x/y.css"');
     expect(r.inlined).toEqual([]);
+  });
+  it("normalizes encoded local image paths and preserves SVG-style fragments", async () => {
+    const image = '<html><body><img src="my%20logo.png?v=2#view"></body></html>';
+    const r = await transformForReview(image, { sdkScript: "", readAsset, previewBaseUrl: null });
+    expect(r.srcdoc).toContain('src="data:image/png;base64,iVBORw==#view"');
+    expect(r.inlined).toEqual(["my logo.png"]);
+  });
+  it("adds the source-directory preview base when a local asset is missing", async () => {
+    const image = '<html><body><img src="missing.png#view"></body></html>';
+    const r = await transformForReview(image, { sdkScript: "", readAsset, previewBaseUrl: "/api/v1/file-previews/abc/docs" });
+    expect(r.srcdoc).toContain('<base href="/api/v1/file-previews/abc/docs/">');
+    expect(r.linked).toEqual(["missing.png"]);
+    expect(r.skipped).toEqual([{ path: "missing.png", reason: "missing" }]);
   });
   it("falls back to <base href> for an asset over the cap when a preview url exists", async () => {
     const r = await transformForReview(page, { sdkScript: "<script>S</script>", readAsset, previewBaseUrl: "/api/v1/file-previews/abc", maxAssetBytes: 3 });

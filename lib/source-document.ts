@@ -1,4 +1,5 @@
 import { extname, posix } from "node:path";
+import GithubSlugger from "github-slugger";
 import { marked } from "marked";
 import sanitizeHtml from "sanitize-html";
 
@@ -103,9 +104,17 @@ export function sourceDocumentHtml(
     return source;
   }
 
+  const slugger = new GithubSlugger();
+  const renderer = new marked.Renderer();
+  renderer.heading = function ({ depth, text, tokens }) {
+    const content = this.parser.parseInline(tokens);
+    const plainText = this.parser.parseInline(tokens, this.parser.textRenderer);
+    return `<h${depth} id="${slugger.slug(plainText || text)}">${content}</h${depth}>`;
+  };
   const rendered = marked.parse(source, {
     async: false,
     gfm: true,
+    renderer,
   });
   const body = sanitizeHtml(rendered, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat([

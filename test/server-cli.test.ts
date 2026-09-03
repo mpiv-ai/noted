@@ -73,7 +73,7 @@ describe("bb noted cli", () => {
     ], { threadId: "thr_a", cwd: "/repo" });
 
     expect(result.exitCode).toBe(0);
-    expect(writes[0].content).toContain("<h1>Review notes</h1>");
+    expect(writes[0].content).toContain('<h1 id="review-notes">Review notes</h1>');
     expect(writes[0].content).toContain('data-noted-source="markdown"');
     expect(writes[0].content).not.toContain("# Review notes");
   });

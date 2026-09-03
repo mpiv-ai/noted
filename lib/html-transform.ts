@@ -36,6 +36,20 @@ const DEFAULT_MAX_ASSET_BYTES = 10_485_760;
 const DEFAULT_MAX_DOC_BYTES = 26_214_400;
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 
+function localAssetReference(reference: string): { path: string; fragment: string } | null {
+  if (URL_SCHEME.test(reference) || reference.startsWith("/")) return null;
+  const queryIndex = reference.indexOf("?");
+  const fragmentIndex = reference.indexOf("#");
+  const suffixIndexes = [queryIndex, fragmentIndex].filter((index) => index >= 0);
+  const pathEnd = suffixIndexes.length === 0 ? reference.length : Math.min(...suffixIndexes);
+  const fragment = fragmentIndex >= 0 ? reference.slice(fragmentIndex) : "";
+  try {
+    return { path: decodeURIComponent(reference.slice(0, pathEnd)), fragment };
+  } catch {
+    return null;
+  }
+}
+
 async function replaceMatches(
   input: string,
   pattern: RegExp,
@@ -62,22 +76,24 @@ async function transform(html: string, opts: TransformOptions): Promise<Transfor
   const skipped: { path: string; reason: string }[] = [];
   const decoder = new TextDecoder();
 
-  const load = async (path: string) => {
-    if (URL_SCHEME.test(path) || path.startsWith("/")) return null;
+  const load = async (reference: string) => {
+    const local = localAssetReference(reference);
+    if (local === null) return null;
 
-    const asset = await opts.readAsset(path);
+    const asset = await opts.readAsset(local.path);
     if (!asset) {
-      skipped.push({ path, reason: "missing" });
+      skipped.push({ path: local.path, reason: "missing" });
+      if (opts.previewBaseUrl !== null) linked.push(local.path);
       return null;
     }
     if (asset.bytes.length > maxAssetBytes) {
-      if (opts.previewBaseUrl !== null) linked.push(path);
-      else skipped.push({ path, reason: "over-cap" });
+      if (opts.previewBaseUrl !== null) linked.push(local.path);
+      else skipped.push({ path: local.path, reason: "over-cap" });
       return null;
     }
 
-    inlined.push(path);
-    return asset;
+    inlined.push(local.path);
+    return { ...asset, fragment: local.fragment };
   };
 
   let result = await replaceMatches(
@@ -95,7 +111,7 @@ async function transform(html: string, opts: TransformOptions): Promise<Transfor
     const asset = await load(path);
     if (!asset) return match[0];
 
-    const dataUrl = `data:${asset.mime};base64,${Buffer.from(asset.bytes).toString("base64")}`;
+    const dataUrl = `data:${asset.mime};base64,${Buffer.from(asset.bytes).toString("base64")}${asset.fragment}`;
     return match[0].replace(/(\bsrc\s*=\s*["'])[^"']*(["'])/i, (_value, before: string, after: string) => {
       return `${before}${dataUrl}${after}`;
     });

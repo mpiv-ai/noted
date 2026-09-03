@@ -24,7 +24,7 @@ describe("noted rpc", () => {
     });
 
     expect(result.displayPath).toBe("docs/notes.md");
-    expect(result.document.srcdoc).toContain("<h1>Review notes</h1>");
+    expect(result.document.srcdoc).toContain('<h1 id="review-notes">Review notes</h1>');
     expect(result.document.srcdoc).toContain("<li>Keep this</li>");
     expect(result.document.srcdoc).toContain('<a href="/api/v1/file-previews/x/README.md">Home</a>');
     expect(result.document.srcdoc).toContain('data-noted-source="markdown"');
