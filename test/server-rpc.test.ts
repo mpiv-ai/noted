@@ -33,6 +33,21 @@ describe("noted rpc", () => {
       rootPath: "/repo",
     });
   });
+  it("does not read Markdown assets outside the workspace preview root", async () => {
+    const h = host();
+    h.setContent("![Outside](../../outside.png)");
+    await plugin(h.bb);
+
+    const result: any = await h.harness.behavior.callRpc("openSession", {
+      threadId: "thr_a",
+      path: "docs/notes.md",
+    });
+
+    expect(result.document.srcdoc).toContain('<img alt="Outside" />');
+    expect(h.harness.inspection.sdk.callsTo("files.read")).toEqual([
+      [{ hostId: "host_1", path: "/repo/docs/notes.md" }],
+    ]);
+  });
   it("resolves view=parent and reopens the same open session", async () => {
     const { bb, harness } = host(); await plugin(bb);
     const a: any = await harness.behavior.callRpc("openSession", { threadId: "thr_loops", path: "packet.html", view: "parent" });

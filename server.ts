@@ -91,12 +91,25 @@ async function captureRevision(
   );
   return { html, revision, changed: true };
 }
-function assetReaderFor(runtime: Runtime, hostId: string | undefined, rootPath: string) {
+function assetReaderFor(
+  runtime: Runtime,
+  hostId: string | undefined,
+  rootPath: string,
+  confinementRootPath?: string,
+) {
   return async (assetPath: string) => {
+    const absolutePath = join(rootPath, assetPath);
+    if (confinementRootPath !== undefined) {
+      try {
+        relativePathWithinRoot(confinementRootPath, absolutePath);
+      } catch {
+        return null;
+      }
+    }
     try {
       const file = await runtime.bb.sdk.files.read({
         hostId,
-        path: join(rootPath, assetPath),
+        path: absolutePath,
       });
       return {
         bytes: Buffer.from(file.content, file.contentEncoding),
@@ -166,7 +179,12 @@ async function readAndTransform(runtime: Runtime, session: Session, trigger: Rev
       loadToken: captured.revision.id,
     }),
     previewBaseUrl: documentPreviewBaseUrl,
-    readAsset: assetReaderFor(runtime, session.hostId ?? undefined, assetRootPath),
+    readAsset: assetReaderFor(
+      runtime,
+      session.hostId ?? undefined,
+      assetRootPath,
+      previewLocation.rootPath,
+    ),
   });
   return { ...captured, document };
 }

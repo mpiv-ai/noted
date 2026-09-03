@@ -55,6 +55,40 @@ type SourceDocumentOptions = {
   sourceDirectory?: string;
 };
 
+function confinedReferencePath(
+  reference: string,
+  options: SourceDocumentOptions,
+): { encodedPath: string; suffix: string } | null {
+  const suffixIndex = [reference.indexOf("?"), reference.indexOf("#")]
+    .filter((index) => index >= 0)
+    .reduce((lowest, index) => Math.min(lowest, index), reference.length);
+  const suffix = reference.slice(suffixIndex);
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURIComponent(reference.slice(0, suffixIndex)).replaceAll("\\", "/");
+  } catch {
+    return null;
+  }
+
+  const rootRelative = decodedPath.startsWith("/");
+  const resolvedPath = posix.normalize(posix.join(
+    rootRelative ? "" : (options.sourceDirectory ?? ""),
+    rootRelative ? decodedPath.replace(/^\/+/, "") : decodedPath,
+  ));
+  if (
+    resolvedPath === "."
+    || resolvedPath === ".."
+    || resolvedPath.startsWith("../")
+    || posix.isAbsolute(resolvedPath)
+  ) {
+    return null;
+  }
+  return {
+    encodedPath: resolvedPath.split("/").map(encodeURIComponent).join("/"),
+    suffix,
+  };
+}
+
 function resolveReviewHref(href: string, options: SourceDocumentOptions): string | null {
   const base = options.previewBaseUrl?.replace(/\/+$/, "");
   if (
@@ -62,37 +96,31 @@ function resolveReviewHref(href: string, options: SourceDocumentOptions): string
     || href === ""
     || href.startsWith("#")
     || href.startsWith("?")
-    || href.startsWith("/")
     || href.startsWith("//")
     || URL_SCHEME.test(href)
   ) {
     return href;
   }
 
-  const suffixIndex = [href.indexOf("?"), href.indexOf("#")]
-    .filter((index) => index >= 0)
-    .reduce((lowest, index) => Math.min(lowest, index), href.length);
-  const suffix = href.slice(suffixIndex);
-  let decodedPath: string;
-  try {
-    decodedPath = decodeURIComponent(href.slice(0, suffixIndex)).replaceAll("\\", "/");
-  } catch {
-    return null;
-  }
-  if (decodedPath.startsWith("/")) {
-    return null;
-  }
+  const resolved = confinedReferencePath(href, options);
+  return resolved === null ? null : `${base}/${resolved.encodedPath}${resolved.suffix}`;
+}
 
-  const resolvedPath = posix.normalize(posix.join(options.sourceDirectory ?? "", decodedPath));
+function confineReviewImageSrc(src: string, options: SourceDocumentOptions): string | null {
   if (
-    resolvedPath === ".."
-    || resolvedPath.startsWith("../")
-    || posix.isAbsolute(resolvedPath)
+    src === ""
+    || src.startsWith("#")
+    || src.startsWith("?")
+    || src.startsWith("//")
+    || URL_SCHEME.test(src)
   ) {
-    return null;
+    return src;
   }
-  const encodedPath = resolvedPath.split("/").map(encodeURIComponent).join("/");
-  return `${base}/${encodedPath}${suffix}`;
+  const resolved = confinedReferencePath(src, options);
+  if (resolved === null) return null;
+  if (!src.startsWith("/")) return src;
+  const base = options.previewBaseUrl?.replace(/\/+$/, "");
+  return base ? `${base}/${resolved.encodedPath}${resolved.suffix}` : null;
 }
 
 export function sourceDocumentHtml(
@@ -126,7 +154,7 @@ export function sourceDocumentHtml(
     allowedAttributes: {
       "*": ["class", "id", "title"],
       a: ["href", "name", "rel", "target"],
-      img: ["alt", "height", "loading", "src", "srcset", "width"],
+      img: ["alt", "height", "loading", "src", "width"],
       input: ["checked", "disabled", "type"],
       ol: ["start"],
       td: ["align"],
@@ -145,6 +173,17 @@ export function sourceDocumentHtml(
         return {
           tagName: "a",
           attribs: href === null ? otherAttributes : { ...otherAttributes, href },
+        };
+      },
+      img: (_tagName, attributes) => {
+        if (attributes.src === undefined) {
+          return { tagName: "img", attribs: attributes };
+        }
+        const { src: _src, ...otherAttributes } = attributes;
+        const src = confineReviewImageSrc(attributes.src, options);
+        return {
+          tagName: "img",
+          attribs: src === null ? otherAttributes : { ...otherAttributes, src },
         };
       },
     },

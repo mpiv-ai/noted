@@ -5,7 +5,7 @@ describe("sourceDocumentHtml", () => {
   it("renders GitHub-flavored Markdown as an annotation-ready HTML document", () => {
     const html = sourceDocumentHtml(
       "/repo/notes.md",
-      "# Plan\n\n- First\n- Second\n\n[Guide](assets/guide.md)\n\n[Home](../README.md)\n\n[Details](#details)\n\n## Details\n\n<script>alert('no')</script>\n\n| Item | Owner |\n| --- | --- |\n| Ship | Michael |",
+      "# Plan\n\n- First\n- Second\n\n[Guide](assets/guide.md)\n\n[Home](../README.md)\n\n[Root guide](/guide.md)\n\n[Details](#details)\n\n## Details\n\n<script>alert('no')</script>\n\n| Item | Owner |\n| --- | --- |\n| Ship | Michael |",
       {
         previewBaseUrl: "/api/v1/file-previews/review-root/",
         sourceDirectory: "docs/reviews",
@@ -17,6 +17,7 @@ describe("sourceDocumentHtml", () => {
     expect(html).toContain("<li>First</li>");
     expect(html).toContain('<a href="/api/v1/file-previews/review-root/docs/reviews/assets/guide.md">Guide</a>');
     expect(html).toContain('<a href="/api/v1/file-previews/review-root/docs/README.md">Home</a>');
+    expect(html).toContain('<a href="/api/v1/file-previews/review-root/guide.md">Root guide</a>');
     expect(html).toContain('<a href="#details">Details</a>');
     expect(html).toContain('<h2 id="details">Details</h2>');
     expect(html).toContain("<table>");
@@ -61,5 +62,16 @@ describe("sourceDocumentHtml", () => {
     });
     expect(html).toContain("<a>Outside</a>");
     expect(html).not.toContain("../outside.md");
+  });
+
+  it("removes local image sources that escape the available preview root", () => {
+    const html = sourceDocumentHtml(
+      "docs/reviews/notes.md",
+      "![Inside](../inside.png)\n\n![Outside](../../../outside.png)\n\n![Root](/images/root.png)",
+      { previewBaseUrl: "/preview", sourceDirectory: "docs/reviews" },
+    );
+    expect(html).toContain('<img alt="Inside" src="../inside.png" />');
+    expect(html).toContain('<img alt="Outside" />');
+    expect(html).toContain('<img alt="Root" src="/preview/images/root.png" />');
   });
 });
