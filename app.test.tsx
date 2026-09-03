@@ -67,6 +67,7 @@ describe("Noted banner and opener", () => {
     await slot.findByText("original preview");
     fireEvent.click(slot.getByRole("button", { name: "Review with Noted" }));
     await waitFor(() => expect(slot.inspection.rpcCalls.some((c) => c.method === "openSession")).toBe(true));
+    expect(slot.inspection.rpcCalls.find((c) => c.method === "openSession")?.input).toMatchObject({ reopen: true });
     await waitFor(() => expect(slot.inspection.navigateCalls).toContainEqual({ method: "openThreadPanel", options: expect.objectContaining({ actionId: "review", params: { sessionId: "s1" } }) }));
   });
   it("file opener is enabled for a thread-storage file and reuses its open session", async () => {
@@ -80,5 +81,65 @@ describe("Noted banner and opener", () => {
     fireEvent.click(button);
     await waitFor(() => expect(slot.inspection.navigateCalls).toContainEqual({ method: "openThreadPanel", options: expect.objectContaining({ actionId: "review", params: { sessionId: "s9" } }) }));
     expect(slot.inspection.rpcCalls.some((c) => c.method === "openSession")).toBe(false);
+  });
+  it("renders the review in the file tab when the host declines a second panel", async () => {
+    const opener = app.fileOpeners.find((o) => o.id === "html")!;
+    const Original = () => <div>original preview</div>;
+    const slot = renderSlot(
+      opener,
+      {
+        path: "plan.html",
+        source: {
+          kind: "workspace",
+          threadId: "t1",
+          environmentId: "e1",
+          projectId: "p1",
+        },
+        Original,
+      },
+      {
+        rpc: {
+          listSessions: () => ({ sessions: [] }),
+          openSession: () => payload,
+          getSession: () => payload,
+        },
+        context: { threadId: "t1", projectId: "p1" },
+        openThreadPanel: () => false,
+      },
+    );
+
+    fireEvent.click(slot.getByRole("button", { name: "Review with Noted" }));
+
+    expect(await slot.findByTitle("Noted: plan.html")).toBeTruthy();
+    expect(slot.queryByText("original preview")).toBeNull();
+    expect(slot.getByRole("button", { name: "Back to preview" })).toBeTruthy();
+  });
+  it("shows a useful error when the file opener cannot create a session", async () => {
+    const opener = app.fileOpeners.find((o) => o.id === "html")!;
+    const Original = () => <div>original preview</div>;
+    const slot = renderSlot(
+      opener,
+      {
+        path: "plan.html",
+        source: {
+          kind: "workspace",
+          threadId: "t1",
+          environmentId: "e1",
+          projectId: "p1",
+        },
+        Original,
+      },
+      {
+        rpc: {
+          listSessions: () => Promise.reject(new Error("service unavailable")),
+        },
+        context: { threadId: "t1", projectId: "p1" },
+      },
+    );
+
+    fireEvent.click(slot.getByRole("button", { name: "Review with Noted" }));
+
+    expect((await slot.findByRole("alert")).textContent).toContain("service unavailable");
+    expect(slot.getByText("original preview")).toBeTruthy();
   });
 });

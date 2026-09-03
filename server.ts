@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
-import { dirname, extname, isAbsolute, join, relative } from "node:path";
+import { dirname, extname, join, relative } from "node:path";
 import type { BbPluginApi, PluginCliContext, PluginCliResult, PluginRpcHandlers } from "@get-bb/plugin-sdk";
 import { transformForExport, transformForReview } from "./lib/html-transform";
 import { buildCompanionNote } from "./lib/kb-note";
 import { buildFeedbackMessage } from "./lib/message";
-import { resolveArtifact, resolveRole } from "./lib/resolve";
+import { relativePathWithinRoot, resolveArtifact, resolveRole } from "./lib/resolve";
 import { rpcContract, type OpenSessionInput } from "./lib/rpc";
 import { buildSdkScript } from "./lib/sdk-script";
 import { openStore, type Revision, type Session, type Store } from "./lib/store";
@@ -50,7 +50,8 @@ function publish(runtime: Runtime, sessionId: string, revisionId: string, reason
 
 async function displayPathFor(runtime: Runtime, session: Session): Promise<string> {
   if (session.sourceKind === "thread-storage") {
-    return relative(join(runtime.dataDir, "thread-storage", session.producerThreadId), session.absolutePath);
+    const storage = await runtime.bb.sdk.threads.storageLocation({ threadId: session.producerThreadId });
+    return relativePathWithinRoot(storage.storageRootPath, session.absolutePath);
   }
   if (session.sourceKind === "workspace") {
     const thread = await runtime.bb.sdk.threads.get({ threadId: session.producerThreadId });
@@ -149,15 +150,13 @@ async function sessionPayload(runtime: Runtime, sessionId: string, trigger: Revi
 export async function openSessionCore(runtime: Runtime, input: OpenSessionInput) {
   const viewThreadId = await resolveRole(runtime.bb.sdk, input.threadId, input.view);
   const replyThreadId = await resolveRole(runtime.bb.sdk, input.threadId, input.replyTo);
-  const path = input.source === "thread-storage" && !isAbsolute(input.path)
-    ? join(runtime.dataDir, "thread-storage", input.threadId, input.path)
-    : input.path;
   const artifact = await resolveArtifact(
     runtime.bb.sdk,
     input.threadId,
-    path,
+    input.path,
     undefined,
     runtime.dataDir,
+    input.source,
   );
   let session = runtime.store.findOpenSession(input.threadId, artifact.absolutePath);
   let rolesChanged = false;

@@ -1,4 +1,4 @@
-import { isAbsolute, join, normalize, relative, sep } from "node:path";
+import { isAbsolute, join, normalize, relative, resolve as resolvePath, sep } from "node:path";
 
 export type ResolveSdk = {
   threads: {
@@ -6,6 +6,10 @@ export type ResolveSdk = {
       id: string;
       parentThreadId: string | null;
       environmentId: string | null;
+    }>;
+    storageLocation(args: { threadId: string }): Promise<{
+      hostId: string;
+      storageRootPath: string;
     }>;
   };
   environments: {
@@ -25,6 +29,25 @@ export type ResolvedArtifact = {
   sourceKind: SourceKind;
   displayPath: string;
 };
+
+function confinedRelativePath(rootPath: string, absolutePath: string): string | null {
+  const displayPath = relative(rootPath, absolutePath);
+  if (
+    displayPath === ""
+    || displayPath === ".."
+    || displayPath.startsWith(`..${sep}`)
+    || isAbsolute(displayPath)
+  ) {
+    return null;
+  }
+  return displayPath;
+}
+
+export function relativePathWithinRoot(rootPath: string, absolutePath: string): string {
+  const displayPath = confinedRelativePath(rootPath, absolutePath);
+  if (displayPath === null) throw new Error("artifact path is outside thread storage");
+  return displayPath;
+}
 
 export async function resolveRole(
   sdk: ResolveSdk,
@@ -53,6 +76,7 @@ export async function resolveArtifact(
   file: string,
   cwd: string | undefined,
   dataDir: string,
+  source?: SourceKind,
 ): Promise<ResolvedArtifact> {
   const thread = await sdk.threads.get({ threadId });
   const env = thread.environmentId
@@ -60,7 +84,32 @@ export async function resolveArtifact(
     : null;
   const hostId = env?.hostId;
 
+  if (source === "thread-storage") {
+    const storage = await sdk.threads.storageLocation({ threadId });
+    const absolutePath = isAbsolute(file)
+      ? normalize(file)
+      : resolvePath(storage.storageRootPath, file);
+    const displayPath = relativePathWithinRoot(storage.storageRootPath, absolutePath);
+    return {
+      hostId: storage.hostId,
+      absolutePath,
+      sourceKind: "thread-storage",
+      displayPath,
+    };
+  }
+
   if (isAbsolute(file)) {
+    const storage = await sdk.threads.storageLocation({ threadId });
+    const storageDisplayPath = confinedRelativePath(storage.storageRootPath, file);
+    if (storageDisplayPath !== null) {
+      return {
+        hostId: storage.hostId,
+        absolutePath: file,
+        sourceKind: "thread-storage",
+        displayPath: storageDisplayPath,
+      };
+    }
+
     const threadStorageRoot = join(dataDir, "thread-storage", threadId);
     if (file.startsWith(`${threadStorageRoot}${sep}`)) {
       return {

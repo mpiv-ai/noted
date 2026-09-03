@@ -10,7 +10,7 @@
     "name": "Noted",
     "description": "Review and annotate HTML artifacts in the side panel, then send feedback to the thread. Built on Lavish.",
     "branding": {
-      "icon": "MessageSquare"
+      "icon": "./assets/icon.svg"
     },
     "server": "./server.ts",
     "app": "./app.tsx",
@@ -93,6 +93,7 @@
     "components",
     "hooks",
     "vendor",
+    "assets",
     "skills",
     "README.md",
     "CHANGELOG.md",
