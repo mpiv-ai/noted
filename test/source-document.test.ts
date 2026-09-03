@@ -5,7 +5,7 @@ describe("sourceDocumentHtml", () => {
   it("renders GitHub-flavored Markdown as an annotation-ready HTML document", () => {
     const html = sourceDocumentHtml(
       "/repo/notes.md",
-      "# Plan\n\n- First\n- Second\n\n[Guide](assets/guide.md)\n\n[Home](../README.md)\n\n[Root guide](/guide.md)\n\n[Details](#details)\n\n## Details\n\n<script>alert('no')</script>\n\n| Item | Owner |\n| --- | --- |\n| Ship | Michael |",
+      "# Plan\n\n- First\n- Second\n\n[Guide](assets/guide.md)\n\n[Home](../README.md)\n\n[Root guide](/guide.md)\n\n[Download](?raw=1)\n\n[Details](#details)\n\n## Details\n\n<script>alert('no')</script>\n\n| Item | Owner |\n| --- | --- |\n| Ship | Michael |",
       {
         previewBaseUrl: "/api/v1/file-previews/review-root/",
         sourceDirectory: "docs/reviews",
@@ -18,6 +18,7 @@ describe("sourceDocumentHtml", () => {
     expect(html).toContain('<a href="/api/v1/file-previews/review-root/docs/reviews/assets/guide.md">Guide</a>');
     expect(html).toContain('<a href="/api/v1/file-previews/review-root/docs/README.md">Home</a>');
     expect(html).toContain('<a href="/api/v1/file-previews/review-root/guide.md">Root guide</a>');
+    expect(html).toContain('<a href="/api/v1/file-previews/review-root/docs/reviews/notes.md?raw=1">Download</a>');
     expect(html).toContain('<a href="#details">Details</a>');
     expect(html).toContain('<h2 id="details">Details</h2>');
     expect(html).toContain("<table>");

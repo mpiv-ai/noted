@@ -53,6 +53,7 @@ const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 type SourceDocumentOptions = {
   previewBaseUrl?: string | null;
   sourceDirectory?: string;
+  sourceFileName?: string;
 };
 
 function confinedReferencePath(
@@ -95,14 +96,17 @@ function resolveReviewHref(href: string, options: SourceDocumentOptions): string
     !base
     || href === ""
     || href.startsWith("#")
-    || href.startsWith("?")
     || href.startsWith("//")
     || URL_SCHEME.test(href)
   ) {
     return href;
   }
 
-  const resolved = confinedReferencePath(href, options);
+  const reference = href.startsWith("?")
+    ? `${options.sourceFileName ?? ""}${href}`
+    : href;
+  if (reference === href && href.startsWith("?")) return null;
+  const resolved = confinedReferencePath(reference, options);
   return resolved === null ? null : `${base}/${resolved.encodedPath}${resolved.suffix}`;
 }
 
@@ -134,6 +138,10 @@ export function sourceDocumentHtml(
   if (!isMarkdownPath(path)) {
     return source;
   }
+  const documentOptions = {
+    ...options,
+    sourceFileName: options.sourceFileName ?? posix.basename(path.replaceAll("\\", "/")),
+  };
 
   const slugger = new GithubSlugger();
   const renderer = new marked.Renderer();
@@ -172,7 +180,7 @@ export function sourceDocumentHtml(
           return { tagName: "a", attribs: attributes };
         }
         const { href: _href, ...otherAttributes } = attributes;
-        const href = resolveReviewHref(attributes.href, options);
+        const href = resolveReviewHref(attributes.href, documentOptions);
         return {
           tagName: "a",
           attribs: href === null ? otherAttributes : { ...otherAttributes, href },
@@ -183,7 +191,7 @@ export function sourceDocumentHtml(
           return { tagName: "img", attribs: attributes };
         }
         const { src: _src, ...otherAttributes } = attributes;
-        const src = confineReviewImageSrc(attributes.src, options);
+        const src = confineReviewImageSrc(attributes.src, documentOptions);
         return {
           tagName: "img",
           attribs: src === null ? otherAttributes : { ...otherAttributes, src },
