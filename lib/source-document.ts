@@ -1,4 +1,4 @@
-import { extname } from "node:path";
+import { extname, posix } from "node:path";
 import { marked } from "marked";
 import sanitizeHtml from "sanitize-html";
 
@@ -49,8 +49,13 @@ export function isMarkdownPath(path: string): boolean {
 
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 
-function resolveReviewHref(href: string, baseHref: string | null | undefined): string {
-  const base = baseHref?.replace(/\/+$/, "");
+type SourceDocumentOptions = {
+  previewBaseUrl?: string | null;
+  sourceDirectory?: string;
+};
+
+function resolveReviewHref(href: string, options: SourceDocumentOptions): string | null {
+  const base = options.previewBaseUrl?.replace(/\/+$/, "");
   if (
     !base
     || href === ""
@@ -62,13 +67,37 @@ function resolveReviewHref(href: string, baseHref: string | null | undefined): s
   ) {
     return href;
   }
-  return `${base}/${href}`;
+
+  const suffixIndex = [href.indexOf("?"), href.indexOf("#")]
+    .filter((index) => index >= 0)
+    .reduce((lowest, index) => Math.min(lowest, index), href.length);
+  const suffix = href.slice(suffixIndex);
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURIComponent(href.slice(0, suffixIndex)).replaceAll("\\", "/");
+  } catch {
+    return null;
+  }
+  if (decodedPath.startsWith("/")) {
+    return null;
+  }
+
+  const resolvedPath = posix.normalize(posix.join(options.sourceDirectory ?? "", decodedPath));
+  if (
+    resolvedPath === ".."
+    || resolvedPath.startsWith("../")
+    || posix.isAbsolute(resolvedPath)
+  ) {
+    return null;
+  }
+  const encodedPath = resolvedPath.split("/").map(encodeURIComponent).join("/");
+  return `${base}/${encodedPath}${suffix}`;
 }
 
 export function sourceDocumentHtml(
   path: string,
   source: string,
-  options: { baseHref?: string | null } = {},
+  options: SourceDocumentOptions = {},
 ): string {
   if (!isMarkdownPath(path)) {
     return source;
@@ -98,15 +127,17 @@ export function sourceDocumentHtml(
     allowedSchemesByTag: { img: ["data", "http", "https"] },
     allowProtocolRelative: false,
     transformTags: {
-      a: (_tagName, attributes) => ({
-        tagName: "a",
-        attribs: {
-          ...attributes,
-          ...(attributes.href === undefined
-            ? {}
-            : { href: resolveReviewHref(attributes.href, options.baseHref) }),
-        },
-      }),
+      a: (_tagName, attributes) => {
+        if (attributes.href === undefined) {
+          return { tagName: "a", attribs: attributes };
+        }
+        const { href: _href, ...otherAttributes } = attributes;
+        const href = resolveReviewHref(attributes.href, options);
+        return {
+          tagName: "a",
+          attribs: href === null ? otherAttributes : { ...otherAttributes, href },
+        };
+      },
     },
   });
 

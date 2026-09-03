@@ -15,20 +15,23 @@ describe("noted rpc", () => {
   });
   it("renders Markdown before injecting the annotation SDK", async () => {
     const h = host();
-    h.setContent("# Review notes\n\n- Keep this\n- Change that\n\n[Guide](docs/guide.md)");
+    h.setContent("# Review notes\n\n- Keep this\n- Change that\n\n[Home](../README.md)");
     await plugin(h.bb);
 
     const result: any = await h.harness.behavior.callRpc("openSession", {
       threadId: "thr_a",
-      path: "notes.md",
+      path: "docs/notes.md",
     });
 
-    expect(result.displayPath).toBe("notes.md");
+    expect(result.displayPath).toBe("docs/notes.md");
     expect(result.document.srcdoc).toContain("<h1>Review notes</h1>");
     expect(result.document.srcdoc).toContain("<li>Keep this</li>");
-    expect(result.document.srcdoc).toContain('<a href="/api/v1/file-previews/x/docs/guide.md">Guide</a>');
+    expect(result.document.srcdoc).toContain('<a href="/api/v1/file-previews/x/README.md">Home</a>');
     expect(result.document.srcdoc).toContain('data-noted-source="markdown"');
     expect(result.document.srcdoc).toContain("<script>");
+    expect(h.harness.inspection.sdk.callsTo("files.createPreview")[0]?.[0]).toMatchObject({
+      rootPath: "/repo",
+    });
   });
   it("resolves view=parent and reopens the same open session", async () => {
     const { bb, harness } = host(); await plugin(bb);

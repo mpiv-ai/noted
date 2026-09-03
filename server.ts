@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { dirname, extname, join, relative } from "node:path";
+import { dirname, extname, join, relative, sep } from "node:path";
 import type { BbPluginApi, PluginCliContext, PluginCliResult, PluginRpcHandlers } from "@get-bb/plugin-sdk";
 import { transformForExport, transformForReview } from "./lib/html-transform";
 import { buildCompanionNote } from "./lib/kb-note";
@@ -108,25 +108,65 @@ function assetReaderFor(runtime: Runtime, hostId: string | undefined, rootPath: 
   };
 }
 
+async function reviewPreviewLocation(runtime: Runtime, session: Session): Promise<{
+  rootPath: string;
+  sourceDirectory: string;
+}> {
+  let rootPath = dirname(session.absolutePath);
+  let relativeFile = session.absolutePath.slice(rootPath.length + 1);
+
+  if (session.sourceKind === "thread-storage") {
+    const storage = await runtime.bb.sdk.threads.storageLocation({
+      threadId: session.producerThreadId,
+    });
+    rootPath = storage.storageRootPath;
+    relativeFile = relativePathWithinRoot(rootPath, session.absolutePath);
+  } else if (session.sourceKind === "workspace") {
+    const thread = await runtime.bb.sdk.threads.get({ threadId: session.producerThreadId });
+    if (thread.environmentId !== null) {
+      const environment = await runtime.bb.sdk.environments.get({
+        environmentId: thread.environmentId,
+      });
+      if (typeof environment.path === "string") {
+        rootPath = environment.path;
+        relativeFile = relativePathWithinRoot(rootPath, session.absolutePath);
+      }
+    }
+  }
+
+  const relativeDirectory = dirname(relativeFile);
+  return {
+    rootPath,
+    sourceDirectory: relativeDirectory === "."
+      ? ""
+      : relativeDirectory.split(sep).join("/"),
+  };
+}
+
 async function readAndTransform(runtime: Runtime, session: Session, trigger: Revision["trigger"]) {
   const captured = await captureRevision(runtime, session, trigger);
-  const rootPath = dirname(session.absolutePath);
+  const assetRootPath = dirname(session.absolutePath);
+  const previewLocation = await reviewPreviewLocation(runtime, session);
   const preview = await runtime.bb.sdk.files.createPreview({
     hostId: session.hostId ?? undefined,
-    rootPath,
+    rootPath: previewLocation.rootPath,
     ttlMs: 600_000,
   });
   const html = sourceDocumentHtml(session.absolutePath, captured.html, {
-    baseHref: preview.baseUrl,
+    previewBaseUrl: preview.baseUrl,
+    sourceDirectory: previewLocation.sourceDirectory,
   });
+  const documentPreviewBaseUrl = previewLocation.sourceDirectory === ""
+    ? preview.baseUrl
+    : `${preview.baseUrl}/${previewLocation.sourceDirectory.split("/").map(encodeURIComponent).join("/")}`;
   const document = await transformForReview(html, {
     sdkScript: buildSdkScript({
       key: session.id,
       revision: runtime.store.listRevisions(session.id).length,
       loadToken: captured.revision.id,
     }),
-    previewBaseUrl: preview.baseUrl,
-    readAsset: assetReaderFor(runtime, session.hostId ?? undefined, rootPath),
+    previewBaseUrl: documentPreviewBaseUrl,
+    readAsset: assetReaderFor(runtime, session.hostId ?? undefined, assetRootPath),
   });
   return { ...captured, document };
 }
