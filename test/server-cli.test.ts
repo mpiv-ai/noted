@@ -50,4 +50,31 @@ describe("bb noted cli", () => {
     expect(writes[1].content).toContain('title: "Plan A"'); expect(writes[1].content).toContain("bb thread: thr_a");
     const out = JSON.parse(r.stdout ?? ""); expect(out.html).toMatch(/_Plan_A\.html$/); expect(out.note).toMatch(/_Plan_A\.md$/);
   });
+  it("file renders a Markdown source into the HTML export", async () => {
+    const writes: any[] = [];
+    const h = host();
+    h.setContent("# Review notes\n\n- First item");
+    await plugin(h.bb);
+    h.harness.inspection.sdk.stub("files.write", async (args: any) => {
+      writes.push(args);
+      return { outcome: "written", sha256: "x", sizeBytes: 1 };
+    });
+
+    const result = await h.harness.behavior.runCli([
+      "file",
+      "notes.md",
+      "--to",
+      "/vault/Projects/Active/MPIV",
+      "--title",
+      "Review Notes",
+      "--summary",
+      "Markdown review.",
+      "--json",
+    ], { threadId: "thr_a", cwd: "/repo" });
+
+    expect(result.exitCode).toBe(0);
+    expect(writes[0].content).toContain("<h1>Review notes</h1>");
+    expect(writes[0].content).toContain('data-noted-source="markdown"');
+    expect(writes[0].content).not.toContain("# Review notes");
+  });
 });

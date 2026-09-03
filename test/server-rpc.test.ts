@@ -13,6 +13,22 @@ describe("noted rpc", () => {
     expect(r.revision.trigger).toBe("open");
     expect(harness.inspection.sdk.callsTo("threads.open")).toHaveLength(1);
   });
+  it("renders Markdown before injecting the annotation SDK", async () => {
+    const h = host();
+    h.setContent("# Review notes\n\n- Keep this\n- Change that");
+    await plugin(h.bb);
+
+    const result: any = await h.harness.behavior.callRpc("openSession", {
+      threadId: "thr_a",
+      path: "notes.md",
+    });
+
+    expect(result.displayPath).toBe("notes.md");
+    expect(result.document.srcdoc).toContain("<h1>Review notes</h1>");
+    expect(result.document.srcdoc).toContain("<li>Keep this</li>");
+    expect(result.document.srcdoc).toContain('data-noted-source="markdown"');
+    expect(result.document.srcdoc).toContain("<script>");
+  });
   it("resolves view=parent and reopens the same open session", async () => {
     const { bb, harness } = host(); await plugin(bb);
     const a: any = await harness.behavior.callRpc("openSession", { threadId: "thr_loops", path: "packet.html", view: "parent" });

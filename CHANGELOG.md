@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add Noted to `.md` and `.markdown` file viewers by default, and render
+  GitHub-flavored Markdown into an annotation-ready document while preserving
+  BB's normal Markdown preview until review starts.
 - Render the Noted review inline when a file-tab surface declines a second
   panel open, and surface session-start errors instead of silently ignoring
   them.

@@ -26,7 +26,7 @@ export default definePluginApp((app) => {
   app.slots.fileOpener({
     id: "html",
     title: "Noted",
-    extensions: ["html", "htm"],
+    extensions: ["html", "htm", "md", "markdown"],
     component: HtmlOpener,
   });
 });

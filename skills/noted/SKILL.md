@@ -1,16 +1,18 @@
 ---
 name: noted
-description: 'Operate the complete Noted review workflow for HTML artifacts in bb. Use when opening an artifact for review, routing review to another thread, responding to annotations, checking or ending a session, reopening an ended review, or filing a finished artifact to a knowledge base. Also use when a user message begins with "Noted: feedback on".'
+description: 'Operate the complete Noted review workflow for HTML and Markdown artifacts in bb. Use when opening an artifact for review, routing review to another thread, responding to annotations, checking or ending a session, reopening an ended review, or filing a finished artifact to a knowledge base. Also use when a user message begins with "Noted: feedback on".'
 ---
 
 # Noted review workflow
 
-Use Noted to collaborate on an HTML artifact in the bb side panel. For creating
-the artifact itself, also use `reviewable-html` when that skill is available.
+Use Noted to collaborate on an HTML or rendered Markdown artifact in the bb
+side panel. For creating an HTML artifact, also use `reviewable-html` when that
+skill is available.
 
 ## Start a review
 
-1. Make sure the HTML exists in the workspace or `$BB_THREAD_STORAGE`.
+1. Make sure the HTML or Markdown file exists in the workspace or
+   `$BB_THREAD_STORAGE`.
 2. Run `bb noted open <file>` from the producing thread.
 3. Route the review only when needed:
    - `--view parent` shows it in the thread that spawned this one.
@@ -30,8 +32,10 @@ A feedback message starts with `Noted: feedback on` and identifies the artifact
 revision. Each numbered item includes its target, selected text when relevant,
 and the requested change.
 
-1. Apply every accepted item to the same HTML file. Preserve the target's
-   stable `id` or semantic structure unless the requested change requires it.
+1. Apply every accepted item to the same source file. For HTML, preserve the
+   target's stable `id` or semantic structure unless the requested change
+   requires it. For Markdown, use the quoted text and rendered element as the
+   target; selectors refer to rendered HTML rather than Markdown syntax.
 2. If an item is ambiguous or conflicts with another item, make safe independent
    changes and ask one focused question about the conflict.
 3. Run the artifact's relevant checks. Do not reopen the session: Noted captures

@@ -7,6 +7,7 @@ import { buildFeedbackMessage } from "./lib/message";
 import { relativePathWithinRoot, resolveArtifact, resolveRole } from "./lib/resolve";
 import { rpcContract, type OpenSessionInput } from "./lib/rpc";
 import { buildSdkScript } from "./lib/sdk-script";
+import { sourceDocumentHtml } from "./lib/source-document";
 import { openStore, type Revision, type Session, type Store } from "./lib/store";
 
 type Runtime = {
@@ -107,16 +108,16 @@ function assetReaderFor(runtime: Runtime, hostId: string | undefined, rootPath: 
   };
 }
 
-
 async function readAndTransform(runtime: Runtime, session: Session, trigger: Revision["trigger"]) {
   const captured = await captureRevision(runtime, session, trigger);
   const rootPath = dirname(session.absolutePath);
+  const html = sourceDocumentHtml(session.absolutePath, captured.html);
   const preview = await runtime.bb.sdk.files.createPreview({
     hostId: session.hostId ?? undefined,
     rootPath,
     ttlMs: 600_000,
   });
-  const document = await transformForReview(captured.html, {
+  const document = await transformForReview(html, {
     sdkScript: buildSdkScript({
       key: session.id,
       revision: runtime.store.listRevisions(session.id).length,
@@ -419,7 +420,8 @@ async function runNotedCli(
       hostId: artifact.hostId,
       path: artifact.absolutePath,
     });
-    const html = decodeText(source.content, source.contentEncoding);
+    const content = decodeText(source.content, source.contentEncoding);
+    const html = sourceDocumentHtml(artifact.absolutePath, content);
     const exported = await transformForExport(html, {
       readAsset: assetReaderFor(runtime, artifact.hostId, dirname(artifact.absolutePath)),
     });
@@ -479,9 +481,9 @@ export default async function plugin(bb: BbPluginApi) {
   const runtime: Runtime = { bb, store, dataDir: bb.server.experimental_dataDir };
   bb.cli.register({
     name: "noted",
-    summary: "Review HTML artifacts with the user in the side panel (built on Lavish)",
+    summary: "Review HTML and Markdown artifacts with the user in the side panel (built on Lavish)",
     commands: [
-      { name: "open", summary: "Open an HTML artifact for review", usage: CLI_USAGES.open },
+      { name: "open", summary: "Open an HTML or Markdown artifact for review", usage: CLI_USAGES.open },
       { name: "reply", summary: "Add a note to the current review", usage: CLI_USAGES.reply },
       { name: "status", summary: "List open review sessions", usage: CLI_USAGES.status },
       { name: "end", summary: "End an open review session", usage: CLI_USAGES.end },

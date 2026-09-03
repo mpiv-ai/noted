@@ -8,7 +8,9 @@ All commands must run inside a bb thread.
 bb noted open <file> [--view <thread>] [--reply-to <thread>] [--reopen] [--json]
 ```
 
-- `<file>` can be workspace HTML or a path in `$BB_THREAD_STORAGE`.
+- `<file>` can be workspace HTML or Markdown, or a path in
+  `$BB_THREAD_STORAGE`. Markdown is rendered before annotation; feedback still
+  names the original Markdown file.
 - The producing thread owns the session and normally receives feedback.
 - `--view` and `--reply-to` each accept `self`, `parent`, or a thread ID.
   `self` is the producing thread and is the default for both roles. `parent`
@@ -25,6 +27,7 @@ Examples:
 
 ```sh
 bb noted open decision.html
+bb noted open notes.md
 bb noted open decision.html --view parent
 bb noted open decision.html --view parent --reply-to parent --json
 bb noted open decision.html --reopen
@@ -61,7 +64,7 @@ bb noted end <file>
 ```
 
 Ends the producing thread's open session for the artifact. Ending does not
-delete the HTML or its stored review history.
+delete the source file or its stored review history.
 
 ## File to a knowledge base
 
