@@ -120,7 +120,10 @@ function confineReviewImageSrc(src: string, options: SourceDocumentOptions): str
   if (resolved === null) return null;
   if (!src.startsWith("/")) return src;
   const base = options.previewBaseUrl?.replace(/\/+$/, "");
-  return base ? `${base}/${resolved.encodedPath}${resolved.suffix}` : null;
+  if (base) return `${base}/${resolved.encodedPath}${resolved.suffix}`;
+  if (options.sourceDirectory === undefined) return null;
+  const relativePath = posix.relative(options.sourceDirectory, resolved.encodedPath);
+  return `${relativePath || posix.basename(resolved.encodedPath)}${resolved.suffix}`;
 }
 
 export function sourceDocumentHtml(

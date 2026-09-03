@@ -77,4 +77,43 @@ describe("bb noted cli", () => {
     expect(writes[0].content).toContain('data-noted-source="markdown"');
     expect(writes[0].content).not.toContain("# Review notes");
   });
+  it("file embeds confined parent and root-relative Markdown images", async () => {
+    const writes: any[] = [];
+    const h = host();
+    await plugin(h.bb);
+    h.harness.inspection.sdk.stub("files.read", async ({ path }: { path: string }) => {
+      if (path === "/repo/docs/notes.md") {
+        const content = "![Parent](../images/parent.png)\n\n![Root](/images/root.png)";
+        return { content, contentEncoding: "utf8", sha256: "md", sizeBytes: content.length };
+      }
+      if (path === "/repo/images/parent.png" || path === "/repo/images/root.png") {
+        return { content: "iVBORw==", contentEncoding: "base64", sha256: "png", sizeBytes: 4 };
+      }
+      throw new Error(`unexpected read: ${path}`);
+    });
+    h.harness.inspection.sdk.stub("files.write", async (args: any) => {
+      writes.push(args);
+      return { outcome: "written", sha256: "x", sizeBytes: 1 };
+    });
+
+    const result = await h.harness.behavior.runCli([
+      "file",
+      "docs/notes.md",
+      "--to",
+      "/vault/Projects/Active/MPIV",
+      "--title",
+      "Image Notes",
+      "--summary",
+      "Image export.",
+      "--json",
+    ], { threadId: "thr_a", cwd: "/repo" });
+
+    expect(result.exitCode).toBe(0);
+    expect(writes[0].content.match(/data:image\/png;base64,iVBORw==/g)).toHaveLength(2);
+    expect(h.harness.inspection.sdk.callsTo("files.read").map((call) => call[0])).toEqual([
+      { hostId: "host_1", path: "/repo/docs/notes.md" },
+      { hostId: "host_1", path: "/repo/images/parent.png" },
+      { hostId: "host_1", path: "/repo/images/root.png" },
+    ]);
+  });
 });

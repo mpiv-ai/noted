@@ -121,28 +121,32 @@ function assetReaderFor(
   };
 }
 
-async function reviewPreviewLocation(runtime: Runtime, session: Session): Promise<{
+async function sourceLocation(runtime: Runtime, source: {
+  producerThreadId: string;
+  sourceKind: Session["sourceKind"];
+  absolutePath: string;
+}): Promise<{
   rootPath: string;
   sourceDirectory: string;
 }> {
-  let rootPath = dirname(session.absolutePath);
-  let relativeFile = session.absolutePath.slice(rootPath.length + 1);
+  let rootPath = dirname(source.absolutePath);
+  let relativeFile = source.absolutePath.slice(rootPath.length + 1);
 
-  if (session.sourceKind === "thread-storage") {
+  if (source.sourceKind === "thread-storage") {
     const storage = await runtime.bb.sdk.threads.storageLocation({
-      threadId: session.producerThreadId,
+      threadId: source.producerThreadId,
     });
     rootPath = storage.storageRootPath;
-    relativeFile = relativePathWithinRoot(rootPath, session.absolutePath);
-  } else if (session.sourceKind === "workspace") {
-    const thread = await runtime.bb.sdk.threads.get({ threadId: session.producerThreadId });
+    relativeFile = relativePathWithinRoot(rootPath, source.absolutePath);
+  } else if (source.sourceKind === "workspace") {
+    const thread = await runtime.bb.sdk.threads.get({ threadId: source.producerThreadId });
     if (thread.environmentId !== null) {
       const environment = await runtime.bb.sdk.environments.get({
         environmentId: thread.environmentId,
       });
       if (typeof environment.path === "string") {
         rootPath = environment.path;
-        relativeFile = relativePathWithinRoot(rootPath, session.absolutePath);
+        relativeFile = relativePathWithinRoot(rootPath, source.absolutePath);
       }
     }
   }
@@ -159,7 +163,7 @@ async function reviewPreviewLocation(runtime: Runtime, session: Session): Promis
 async function readAndTransform(runtime: Runtime, session: Session, trigger: Revision["trigger"]) {
   const captured = await captureRevision(runtime, session, trigger);
   const assetRootPath = dirname(session.absolutePath);
-  const previewLocation = await reviewPreviewLocation(runtime, session);
+  const previewLocation = await sourceLocation(runtime, session);
   const preview = await runtime.bb.sdk.files.createPreview({
     hostId: session.hostId ?? undefined,
     rootPath: previewLocation.rootPath,
@@ -481,9 +485,21 @@ async function runNotedCli(
       path: artifact.absolutePath,
     });
     const content = decodeText(source.content, source.contentEncoding);
-    const html = sourceDocumentHtml(artifact.absolutePath, content);
+    const location = await sourceLocation(runtime, {
+      producerThreadId: threadId,
+      sourceKind: artifact.sourceKind,
+      absolutePath: artifact.absolutePath,
+    });
+    const html = sourceDocumentHtml(artifact.absolutePath, content, {
+      sourceDirectory: location.sourceDirectory,
+    });
     const exported = await transformForExport(html, {
-      readAsset: assetReaderFor(runtime, artifact.hostId, dirname(artifact.absolutePath)),
+      readAsset: assetReaderFor(
+        runtime,
+        artifact.hostId,
+        dirname(artifact.absolutePath),
+        location.rootPath,
+      ),
     });
     const now = new Date();
     const created = [

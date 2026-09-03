@@ -74,4 +74,14 @@ describe("sourceDocumentHtml", () => {
     expect(html).toContain('<img alt="Outside" />');
     expect(html).toContain('<img alt="Root" src="/preview/images/root.png" />');
   });
+
+  it("preserves confined parent and root-relative images for export", () => {
+    const html = sourceDocumentHtml(
+      "docs/notes.md",
+      "![Parent](../images/parent.png)\n\n![Root](/images/root.png)",
+      { sourceDirectory: "docs" },
+    );
+    expect(html).toContain('<img alt="Parent" src="../images/parent.png" />');
+    expect(html).toContain('<img alt="Root" src="../images/root.png" />');
+  });
 });
