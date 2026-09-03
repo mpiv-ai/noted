@@ -80,7 +80,8 @@ describe("Noted banner and opener", () => {
     };
     const slot = renderSlot(opener, { path: "notes.md", source: { kind: "workspace", threadId: "t1", environmentId: "e1", projectId: "p1" }, Original }, { rpc: { listSessions: () => ({ sessions: [] }), openSession: () => markdownPayload }, context: { threadId: "t1", projectId: "p1" } });
 
-    await slot.findByText("rendered markdown preview");
+    const preview = await slot.findByText("rendered markdown preview");
+    expect(preview.parentElement?.classList.contains("overflow-y-auto")).toBe(true);
     fireEvent.click(slot.getByRole("button", { name: "Review with Noted" }));
 
     await waitFor(() => expect(slot.inspection.rpcCalls.find((call) => call.method === "openSession")?.input).toMatchObject({ path: "notes.md", reopen: true }));
