@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { dirname, extname, join, relative } from "node:path";
+import { dirname, extname, join, relative, sep } from "node:path";
 import type { BbPluginApi, PluginCliContext, PluginCliResult, PluginRpcHandlers } from "@get-bb/plugin-sdk";
 import { transformForExport, transformForReview } from "./lib/html-transform";
 import { buildCompanionNote } from "./lib/kb-note";
@@ -7,6 +7,7 @@ import { buildFeedbackMessage } from "./lib/message";
 import { relativePathWithinRoot, resolveArtifact, resolveRole } from "./lib/resolve";
 import { rpcContract, type OpenSessionInput } from "./lib/rpc";
 import { buildSdkScript } from "./lib/sdk-script";
+import { sourceDocumentHtml } from "./lib/source-document";
 import { openStore, type Revision, type Session, type Store } from "./lib/store";
 
 type Runtime = {
@@ -90,12 +91,25 @@ async function captureRevision(
   );
   return { html, revision, changed: true };
 }
-function assetReaderFor(runtime: Runtime, hostId: string | undefined, rootPath: string) {
+function assetReaderFor(
+  runtime: Runtime,
+  hostId: string | undefined,
+  rootPath: string,
+  confinementRootPath?: string,
+) {
   return async (assetPath: string) => {
+    const absolutePath = join(rootPath, assetPath);
+    if (confinementRootPath !== undefined) {
+      try {
+        relativePathWithinRoot(confinementRootPath, absolutePath);
+      } catch {
+        return null;
+      }
+    }
     try {
       const file = await runtime.bb.sdk.files.read({
         hostId,
-        path: join(rootPath, assetPath),
+        path: absolutePath,
       });
       return {
         bytes: Buffer.from(file.content, file.contentEncoding),
@@ -107,23 +121,75 @@ function assetReaderFor(runtime: Runtime, hostId: string | undefined, rootPath: 
   };
 }
 
+async function sourceLocation(runtime: Runtime, source: {
+  producerThreadId: string;
+  sourceKind: Session["sourceKind"];
+  absolutePath: string;
+}): Promise<{
+  rootPath: string;
+  sourceDirectory: string;
+}> {
+  let rootPath = dirname(source.absolutePath);
+  let relativeFile = source.absolutePath.slice(rootPath.length + 1);
+
+  if (source.sourceKind === "thread-storage") {
+    const storage = await runtime.bb.sdk.threads.storageLocation({
+      threadId: source.producerThreadId,
+    });
+    rootPath = storage.storageRootPath;
+    relativeFile = relativePathWithinRoot(rootPath, source.absolutePath);
+  } else if (source.sourceKind === "workspace") {
+    const thread = await runtime.bb.sdk.threads.get({ threadId: source.producerThreadId });
+    if (thread.environmentId !== null) {
+      const environment = await runtime.bb.sdk.environments.get({
+        environmentId: thread.environmentId,
+      });
+      if (typeof environment.path === "string") {
+        rootPath = environment.path;
+        relativeFile = relativePathWithinRoot(rootPath, source.absolutePath);
+      }
+    }
+  }
+
+  const relativeDirectory = dirname(relativeFile);
+  return {
+    rootPath,
+    sourceDirectory: relativeDirectory === "."
+      ? ""
+      : relativeDirectory.split(sep).join("/"),
+  };
+}
 
 async function readAndTransform(runtime: Runtime, session: Session, trigger: Revision["trigger"]) {
   const captured = await captureRevision(runtime, session, trigger);
-  const rootPath = dirname(session.absolutePath);
+  const assetRootPath = dirname(session.absolutePath);
+  const previewLocation = await sourceLocation(runtime, session);
   const preview = await runtime.bb.sdk.files.createPreview({
     hostId: session.hostId ?? undefined,
-    rootPath,
+    rootPath: previewLocation.rootPath,
     ttlMs: 600_000,
   });
-  const document = await transformForReview(captured.html, {
+  const html = sourceDocumentHtml(session.absolutePath, captured.html, {
+    previewBaseUrl: preview.baseUrl,
+    sourceDirectory: previewLocation.sourceDirectory,
+  });
+  const documentPreviewBaseUrl = previewLocation.sourceDirectory === ""
+    ? preview.baseUrl
+    : `${preview.baseUrl}/${previewLocation.sourceDirectory.split("/").map(encodeURIComponent).join("/")}`;
+  const document = await transformForReview(html, {
     sdkScript: buildSdkScript({
       key: session.id,
       revision: runtime.store.listRevisions(session.id).length,
       loadToken: captured.revision.id,
     }),
-    previewBaseUrl: preview.baseUrl,
-    readAsset: assetReaderFor(runtime, session.hostId ?? undefined, rootPath),
+    previewBaseUrl: documentPreviewBaseUrl,
+    previewRootUrl: preview.baseUrl,
+    readAsset: assetReaderFor(
+      runtime,
+      session.hostId ?? undefined,
+      assetRootPath,
+      previewLocation.rootPath,
+    ),
   });
   return { ...captured, document };
 }
@@ -419,9 +485,22 @@ async function runNotedCli(
       hostId: artifact.hostId,
       path: artifact.absolutePath,
     });
-    const html = decodeText(source.content, source.contentEncoding);
+    const content = decodeText(source.content, source.contentEncoding);
+    const location = await sourceLocation(runtime, {
+      producerThreadId: threadId,
+      sourceKind: artifact.sourceKind,
+      absolutePath: artifact.absolutePath,
+    });
+    const html = sourceDocumentHtml(artifact.absolutePath, content, {
+      sourceDirectory: location.sourceDirectory,
+    });
     const exported = await transformForExport(html, {
-      readAsset: assetReaderFor(runtime, artifact.hostId, dirname(artifact.absolutePath)),
+      readAsset: assetReaderFor(
+        runtime,
+        artifact.hostId,
+        dirname(artifact.absolutePath),
+        location.rootPath,
+      ),
     });
     const now = new Date();
     const created = [
@@ -479,9 +558,9 @@ export default async function plugin(bb: BbPluginApi) {
   const runtime: Runtime = { bb, store, dataDir: bb.server.experimental_dataDir };
   bb.cli.register({
     name: "noted",
-    summary: "Review HTML artifacts with the user in the side panel (built on Lavish)",
+    summary: "Review HTML and Markdown artifacts with the user in the side panel (built on Lavish)",
     commands: [
-      { name: "open", summary: "Open an HTML artifact for review", usage: CLI_USAGES.open },
+      { name: "open", summary: "Open an HTML or Markdown artifact for review", usage: CLI_USAGES.open },
       { name: "reply", summary: "Add a note to the current review", usage: CLI_USAGES.reply },
       { name: "status", summary: "List open review sessions", usage: CLI_USAGES.status },
       { name: "end", summary: "End an open review session", usage: CLI_USAGES.end },

@@ -61,7 +61,7 @@ describe("Noted banner and opener", () => {
   });
   it("file opener shows bb's preview with a Review with Noted button", async () => {
     const opener = app.fileOpeners.find((o) => o.id === "html")!;
-    expect([...opener.extensions]).toEqual(["html", "htm"]);
+    expect([...opener.extensions]).toEqual(["html", "htm", "md", "markdown"]);
     const Original = () => <div>original preview</div>;
     const slot = renderSlot(opener, { path: "plan.html", source: { kind: "workspace", threadId: "t1", environmentId: "e1", projectId: "p1" }, Original }, { rpc: { listSessions: () => ({ sessions: [] }), openSession: () => payload }, context: { threadId: "t1", projectId: "p1" } });
     await slot.findByText("original preview");
@@ -69,6 +69,22 @@ describe("Noted banner and opener", () => {
     await waitFor(() => expect(slot.inspection.rpcCalls.some((c) => c.method === "openSession")).toBe(true));
     expect(slot.inspection.rpcCalls.find((c) => c.method === "openSession")?.input).toMatchObject({ reopen: true });
     await waitFor(() => expect(slot.inspection.navigateCalls).toContainEqual({ method: "openThreadPanel", options: expect.objectContaining({ actionId: "review", params: { sessionId: "s1" } }) }));
+  });
+  it("offers Noted for Markdown without an agent-created session", async () => {
+    const opener = app.fileOpeners.find((o) => o.id === "html")!;
+    const Original = () => <div>rendered markdown preview</div>;
+    const markdownPayload = {
+      ...payload,
+      session: { ...session, absolutePath: "/repo/notes.md" },
+      displayPath: "notes.md",
+    };
+    const slot = renderSlot(opener, { path: "notes.md", source: { kind: "workspace", threadId: "t1", environmentId: "e1", projectId: "p1" }, Original }, { rpc: { listSessions: () => ({ sessions: [] }), openSession: () => markdownPayload }, context: { threadId: "t1", projectId: "p1" } });
+
+    await slot.findByText("rendered markdown preview");
+    fireEvent.click(slot.getByRole("button", { name: "Review with Noted" }));
+
+    await waitFor(() => expect(slot.inspection.rpcCalls.find((call) => call.method === "openSession")?.input).toMatchObject({ path: "notes.md", reopen: true }));
+    expect(slot.inspection.navigateCalls).toContainEqual({ method: "openThreadPanel", options: expect.objectContaining({ actionId: "review", params: { sessionId: "s1" } }) });
   });
   it("file opener is enabled for a thread-storage file and reuses its open session", async () => {
     const opener = app.fileOpeners.find((o) => o.id === "html")!;

@@ -13,6 +13,41 @@ describe("noted rpc", () => {
     expect(r.revision.trigger).toBe("open");
     expect(harness.inspection.sdk.callsTo("threads.open")).toHaveLength(1);
   });
+  it("renders Markdown before injecting the annotation SDK", async () => {
+    const h = host();
+    h.setContent("# Review notes\n\n- Keep this\n- Change that\n\n[Home](../README.md)");
+    await plugin(h.bb);
+
+    const result: any = await h.harness.behavior.callRpc("openSession", {
+      threadId: "thr_a",
+      path: "docs/notes.md",
+    });
+
+    expect(result.displayPath).toBe("docs/notes.md");
+    expect(result.document.srcdoc).toContain('<h1 id="review-notes">Review notes</h1>');
+    expect(result.document.srcdoc).toContain("<li>Keep this</li>");
+    expect(result.document.srcdoc).toContain('<a href="/api/v1/file-previews/x/README.md">Home</a>');
+    expect(result.document.srcdoc).toContain('data-noted-source="markdown"');
+    expect(result.document.srcdoc).toContain("<script>");
+    expect(h.harness.inspection.sdk.callsTo("files.createPreview")[0]?.[0]).toMatchObject({
+      rootPath: "/repo",
+    });
+  });
+  it("does not read Markdown assets outside the workspace preview root", async () => {
+    const h = host();
+    h.setContent("![Outside](../../outside.png)");
+    await plugin(h.bb);
+
+    const result: any = await h.harness.behavior.callRpc("openSession", {
+      threadId: "thr_a",
+      path: "docs/notes.md",
+    });
+
+    expect(result.document.srcdoc).toContain('<img alt="Outside" />');
+    expect(h.harness.inspection.sdk.callsTo("files.read")).toEqual([
+      [{ hostId: "host_1", path: "/repo/docs/notes.md" }],
+    ]);
+  });
   it("resolves view=parent and reopens the same open session", async () => {
     const { bb, harness } = host(); await plugin(bb);
     const a: any = await harness.behavior.callRpc("openSession", { threadId: "thr_loops", path: "packet.html", view: "parent" });
