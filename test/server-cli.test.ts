@@ -11,6 +11,19 @@ describe("bb noted cli", () => {
     expect(out.view_thread).toBe("thr_michael"); expect(out.reply_thread).toBe("thr_loops"); expect(out.path).toBe("plan.html"); expect(out.revision).toBe(1);
     expect(out.next_step).toMatch(/end your turn/i);
   });
+  it("opens an absolute thread-storage path on the thread's storage host", async () => {
+    const { bb, harness } = host(); await plugin(bb);
+    const path = "/thread-storage/thr_a/noted-live-test/index.html";
+
+    const result = await harness.behavior.runCli(["open", path, "--json"], { threadId: "thr_a" });
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout ?? "").path).toBe("noted-live-test/index.html");
+    expect(harness.inspection.sdk.callsTo("files.read")[0]?.[0]).toMatchObject({
+      hostId: "thread_storage_host",
+      path,
+    });
+  });
   it("reply appends to the caller's open session and status lists it", async () => {
     const { bb, harness } = host(); await plugin(bb);
     await harness.behavior.runCli(["open", "plan.html"], { threadId: "thr_a" });

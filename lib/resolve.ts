@@ -30,7 +30,7 @@ export type ResolvedArtifact = {
   displayPath: string;
 };
 
-export function relativePathWithinRoot(rootPath: string, absolutePath: string): string {
+function confinedRelativePath(rootPath: string, absolutePath: string): string | null {
   const displayPath = relative(rootPath, absolutePath);
   if (
     displayPath === ""
@@ -38,8 +38,14 @@ export function relativePathWithinRoot(rootPath: string, absolutePath: string): 
     || displayPath.startsWith(`..${sep}`)
     || isAbsolute(displayPath)
   ) {
-    throw new Error("artifact path is outside thread storage");
+    return null;
   }
+  return displayPath;
+}
+
+export function relativePathWithinRoot(rootPath: string, absolutePath: string): string {
+  const displayPath = confinedRelativePath(rootPath, absolutePath);
+  if (displayPath === null) throw new Error("artifact path is outside thread storage");
   return displayPath;
 }
 
@@ -93,6 +99,17 @@ export async function resolveArtifact(
   }
 
   if (isAbsolute(file)) {
+    const storage = await sdk.threads.storageLocation({ threadId });
+    const storageDisplayPath = confinedRelativePath(storage.storageRootPath, file);
+    if (storageDisplayPath !== null) {
+      return {
+        hostId: storage.hostId,
+        absolutePath: file,
+        sourceKind: "thread-storage",
+        displayPath: storageDisplayPath,
+      };
+    }
+
     const threadStorageRoot = join(dataDir, "thread-storage", threadId);
     if (file.startsWith(`${threadStorageRoot}${sep}`)) {
       return {
