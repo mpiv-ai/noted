@@ -1,5 +1,6 @@
 import { extname } from "node:path";
 import { marked } from "marked";
+import sanitizeHtml from "sanitize-html";
 
 const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown"]);
 
@@ -46,12 +47,22 @@ export function isMarkdownPath(path: string): boolean {
   return MARKDOWN_EXTENSIONS.has(extname(path).toLowerCase());
 }
 
-function escapeAttribute(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+
+function resolveReviewHref(href: string, baseHref: string | null | undefined): string {
+  const base = baseHref?.replace(/\/+$/, "");
+  if (
+    !base
+    || href === ""
+    || href.startsWith("#")
+    || href.startsWith("?")
+    || href.startsWith("/")
+    || href.startsWith("//")
+    || URL_SCHEME.test(href)
+  ) {
+    return href;
+  }
+  return `${base}/${href}`;
 }
 
 export function sourceDocumentHtml(
@@ -63,20 +74,47 @@ export function sourceDocumentHtml(
     return source;
   }
 
-  const body = marked.parse(source, {
+  const rendered = marked.parse(source, {
     async: false,
     gfm: true,
   });
-  const baseHref = options.baseHref?.replace(/\/+$/, "");
-  const base = baseHref
-    ? `\n  <base href="${escapeAttribute(baseHref)}/">`
-    : "";
+  const body = sanitizeHtml(rendered, {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+      "details",
+      "img",
+      "input",
+      "summary",
+    ]),
+    allowedAttributes: {
+      "*": ["class", "id", "title"],
+      a: ["href", "name", "rel", "target"],
+      img: ["alt", "height", "loading", "src", "srcset", "width"],
+      input: ["checked", "disabled", "type"],
+      ol: ["start"],
+      td: ["align"],
+      th: ["align"],
+    },
+    allowedSchemes: ["http", "https", "mailto", "tel"],
+    allowedSchemesByTag: { img: ["data", "http", "https"] },
+    allowProtocolRelative: false,
+    transformTags: {
+      a: (_tagName, attributes) => ({
+        tagName: "a",
+        attribs: {
+          ...attributes,
+          ...(attributes.href === undefined
+            ? {}
+            : { href: resolveReviewHref(attributes.href, options.baseHref) }),
+        },
+      }),
+    },
+  });
 
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">${base}
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>${MARKDOWN_STYLES}</style>
 </head>
 <body>

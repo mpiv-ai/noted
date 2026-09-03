@@ -8,6 +8,7 @@ Noted ships or bundles the following third-party software:
 - Marked, MIT License, Copyright (c) 2018+ MarkedJS and Copyright (c)
   2011-2018 Christopher Jeffrey. Marked also carries the original Markdown
   license, Copyright (c) 2004 John Gruber.
+- sanitize-html, MIT License, Copyright (c) 2013-2015 P'unk Avenue LLC.
 - Zod, MIT License, Copyright (c) 2025 Colin McDonnell.
 
 The following MIT License terms apply to each MIT-licensed component listed

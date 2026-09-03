@@ -5,17 +5,33 @@ describe("sourceDocumentHtml", () => {
   it("renders GitHub-flavored Markdown as an annotation-ready HTML document", () => {
     const html = sourceDocumentHtml(
       "/repo/notes.md",
-      "# Plan\n\n- First\n- Second\n\n[Guide](docs/guide.md)\n\n| Item | Owner |\n| --- | --- |\n| Ship | Michael |",
+      "# Plan\n\n- First\n- Second\n\n[Guide](docs/guide.md)\n\n[Details](#details)\n\n<a id=\"details\"></a>\n\n<script>alert('no')</script>\n\n| Item | Owner |\n| --- | --- |\n| Ship | Michael |",
       { baseHref: "/api/v1/file-previews/review-root/" },
     );
 
     expect(html).toContain('data-noted-source="markdown"');
-    expect(html).toContain('<base href="/api/v1/file-previews/review-root/">');
     expect(html).toContain("<h1>Plan</h1>");
     expect(html).toContain("<li>First</li>");
-    expect(html).toContain('<a href="docs/guide.md">Guide</a>');
+    expect(html).toContain('<a href="/api/v1/file-previews/review-root/docs/guide.md">Guide</a>');
+    expect(html).toContain('<a href="#details">Details</a>');
+    expect(html).toContain('<a id="details"></a>');
     expect(html).toContain("<table>");
     expect(html).not.toContain("# Plan");
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("alert('no')");
+  });
+
+  it("strips executable attributes and unsafe URL schemes from raw HTML", () => {
+    const html = sourceDocumentHtml(
+      "notes.md",
+      '<img src="diagram.png" onerror="alert(1)"><a href="javascript:alert(2)">Bad</a>',
+      { baseHref: "/preview" },
+    );
+
+    expect(html).toContain('<img src="diagram.png" />');
+    expect(html).toContain("<a>Bad</a>");
+    expect(html).not.toContain("onerror");
+    expect(html).not.toContain("javascript:");
   });
 
   it("recognizes Markdown extensions case-insensitively", () => {
