@@ -91,7 +91,7 @@ export default function HtmlOpener({ path, source, Original }: PluginFileOpenerP
           Review with Noted
         </button>
       </div>
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <Original />
       </div>
     </div>
