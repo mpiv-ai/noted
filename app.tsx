@@ -8,7 +8,6 @@ export default definePluginApp((app) => {
   app.slots.threadPanelAction({
     id: "review",
     title: "Noted review",
-    icon: "MessageSquare",
     layout: "flush",
     component: ReviewTab,
   });

@@ -10,6 +10,10 @@ export function host(sendImpl: (args: unknown) => Promise<unknown> = async () =>
     sdk: {
       threads: {
         get: async ({ threadId }: { threadId: string }) => ({ id: threadId, parentThreadId: threadId === "thr_loops" ? "thr_michael" : null, environmentId: "env_1", projectId: "proj_1" }),
+        storageLocation: async ({ threadId }: { threadId: string }) => ({
+          hostId: "thread_storage_host",
+          storageRootPath: `/thread-storage/${threadId}`,
+        }),
         send: sendImpl,
         open: async () => ({ delivered: 1 }),
       },

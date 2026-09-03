@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- Render the Noted review inline when a file-tab surface declines a second
+  panel open, and surface session-start errors instead of silently ignoring
+  them.
+- Replace the host icon-name dependency with a bundled, validated Noted icon.
+- Expand the bundled `noted` skill to cover the complete session lifecycle,
+  cross-thread routing, revision feedback, and knowledge-base filing.
+- Add a `reviewable-html` skill that standardizes substantial visual artifacts,
+  routes them through applicable brand templates, and supplies a responsive,
+  accessible Noted house template as a fallback.
+- Require small brand-critical images to be embedded from their supplied source
+  assets so BB's base-less HTML preview does not render broken logos.
+- Resolve thread-storage artifacts through the thread's authoritative host and
+  storage root, and let an explicit Review with Noted click resume an ended
+  review.
+
 ## 0.1.1 - 2026-09-02
 
 - Correct package metadata and documentation to describe the current HTML review release.

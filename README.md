@@ -49,6 +49,21 @@ bb noted file plan.html --to <vault-folder> --title "Plan A" --summary "..."
 
 Feedback arrives in the selected thread as a message that starts with `Noted: feedback on ...`.
 
+## Agent skills
+
+Installing Noted contributes two skills to new bb agent sessions:
+
+- `reviewable-html` makes a branded, annotation-friendly HTML page the default
+  for substantial visual plans, reports, comparisons, and decision artifacts.
+  It starts from the applicable brand skill's template, with a bundled Noted
+  house template as the fallback.
+- `noted` covers the complete review lifecycle: opening and routing sessions,
+  applying targeted feedback, replying, checking status, ending or reopening a
+  review, and filing a finished artifact to a knowledge base.
+
+Skills are discovered when a new agent session starts. Existing sessions do not
+receive skill changes mid-session.
+
 ## Trust and data
 
 BB plugins run with full trust. Noted reads only artifacts and assets that you open. It stores sessions, revisions, and feedback in BB-managed SQLite. The `bb noted file --to` command writes exports only to the destination that you provide. Noted sends feedback to the BB thread that you select and adds no independent telemetry.

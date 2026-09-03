@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>[Artifact title]</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #5d6875;
+      --paper: #f7f5f0;
+      --panel: #fffdfa;
+      --line: #d9d4ca;
+      --accent: #5b557f;
+      --accent-soft: #ece9f6;
+      --success: #2f6b4f;
+      --warning: #8a5a23;
+      --radius: 10px;
+      --measure: 76rem;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 16px/1.65 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-rendering: optimizeLegibility;
+    }
+    a { color: var(--accent); text-underline-offset: 0.18em; }
+    a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    header, main, footer { width: min(calc(100% - 40px), var(--measure)); margin-inline: auto; }
+    header { padding: 72px 0 40px; border-bottom: 1px solid var(--line); }
+    main { padding: 16px 0 72px; }
+    footer { padding: 24px 0 48px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.875rem; }
+    .eyebrow { margin: 0 0 12px; color: var(--accent); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+    h1, h2, h3 { font-family: ui-serif, Georgia, Cambria, "Times New Roman", serif; line-height: 1.15; text-wrap: balance; }
+    h1 { max-width: 18ch; margin: 0; font-size: clamp(2.5rem, 7vw, 5.5rem); font-weight: 500; letter-spacing: -0.035em; }
+    h2 { margin: 0; font-size: clamp(1.6rem, 3vw, 2.25rem); font-weight: 550; }
+    h3 { margin: 0; font-size: 1.2rem; }
+    .dek { max-width: 68ch; margin: 24px 0 0; color: var(--muted); font-size: 1.125rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 28px; color: var(--muted); font-size: 0.875rem; }
+    section { scroll-margin-top: 24px; padding: 40px 0; border-bottom: 1px solid var(--line); }
+    .section-head { display: grid; grid-template-columns: minmax(12rem, 0.35fr) 1fr; gap: 32px; align-items: start; }
+    .section-body { min-width: 0; }
+    .section-body > :first-child { margin-top: 0; }
+    .section-body > :last-child { margin-bottom: 0; }
+    .callout { padding: 24px; border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line)); border-left: 4px solid var(--accent); border-radius: var(--radius); background: var(--panel); }
+    .callout strong { display: block; margin-bottom: 6px; font-family: ui-serif, Georgia, serif; font-size: 1.2rem; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+    .card { padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+    .card p { margin-bottom: 0; color: var(--muted); }
+    .label { display: inline-flex; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+    .table-wrap { overflow-x: auto; margin-top: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.925rem; }
+    caption { padding: 14px 16px; color: var(--muted); text-align: left; }
+    th, td { padding: 14px 16px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; }
+    ul, ol { padding-left: 1.25rem; }
+    li + li { margin-top: 0.5rem; }
+    .status-good { color: var(--success); }
+    .status-watch { color: var(--warning); }
+    @media (max-width: 760px) {
+      header { padding-top: 48px; }
+      .section-head { grid-template-columns: 1fr; gap: 18px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      .table-wrap { overflow: visible; border: 0; background: transparent; }
+      table, tbody { display: block; }
+      caption { display: block; padding: 0 0 12px; }
+      thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      tbody tr { display: block; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+      tbody tr + tr { margin-top: 12px; }
+      tbody th, tbody td { display: block; padding: 0; border: 0; }
+      tbody th { margin-bottom: 12px; color: var(--ink); font-size: 1rem; }
+      tbody td + td { margin-top: 10px; }
+      tbody td::before { content: attr(data-label); display: block; color: var(--muted); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    }
+    @media print {
+      :root { --paper: #fff; --panel: #fff; }
+      body { font-size: 11pt; }
+      header, main, footer { width: 100%; }
+      header { padding-top: 0; }
+      section, .card, .callout, tr { break-inside: avoid; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+  <header id="artifact-header">
+    <p class="eyebrow">[Artifact type · date]</p>
+    <h1>[Outcome-led artifact title.]</h1>
+    <p class="dek">[One or two sentences stating the recommendation, decision, or current status.]</p>
+    <div class="meta" aria-label="Artifact metadata">
+      <span>[Owner]</span>
+      <span>[Scope]</span>
+      <span>[Revision or as-of date]</span>
+    </div>
+  </header>
+
+  <main>
+    <section id="recommendation" aria-labelledby="recommendation-heading">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">01 · Recommendation</p>
+          <h2 id="recommendation-heading">[What should happen.]</h2>
+        </div>
+        <div class="section-body">
+          <div class="callout" id="recommended-action">
+            <strong>[Recommended action]</strong>
+            [Why this is the best-supported next move.]
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="evidence" aria-labelledby="evidence-heading">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">02 · Evidence</p>
+          <h2 id="evidence-heading">[What supports it.]</h2>
+        </div>
+        <div class="section-body">
+          <div class="grid">
+            <article class="card" id="evidence-one">
+              <span class="label">[Signal]</span>
+              <h3>[Evidence point.]</h3>
+              <p>[Specific fact, source, or observation.]</p>
+            </article>
+            <article class="card" id="evidence-two">
+              <span class="label">[Signal]</span>
+              <h3>[Evidence point.]</h3>
+              <p>[Specific fact, source, or observation.]</p>
+            </article>
+            <article class="card" id="evidence-three">
+              <span class="label">[Signal]</span>
+              <h3>[Evidence point.]</h3>
+              <p>[Specific fact, source, or observation.]</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="alternatives" aria-labelledby="alternatives-heading">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">03 · Alternatives</p>
+          <h2 id="alternatives-heading">[What was considered.]</h2>
+        </div>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table>
+              <caption>[Comparison criteria and scope.]</caption>
+              <thead><tr><th>Option</th><th>Benefit</th><th>Tradeoff</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr id="option-a"><th scope="row">[Option A]</th><td data-label="Benefit">[Benefit]</td><td data-label="Tradeoff">[Tradeoff]</td><td data-label="Status" class="status-good">Recommended</td></tr>
+                <tr id="option-b"><th scope="row">[Option B]</th><td data-label="Benefit">[Benefit]</td><td data-label="Tradeoff">[Tradeoff]</td><td data-label="Status" class="status-watch">Considered</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="risks-and-open-questions" aria-labelledby="risks-heading">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">04 · Risks</p>
+          <h2 id="risks-heading">[What remains unresolved.]</h2>
+        </div>
+        <div class="section-body">
+          <ul>
+            <li id="risk-one"><strong>[Risk or question.]</strong> [Impact, evidence needed, and owner.]</li>
+            <li id="risk-two"><strong>[Risk or question.]</strong> [Impact, evidence needed, and owner.]</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="next-steps" aria-labelledby="next-steps-heading">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">05 · Next steps</p>
+          <h2 id="next-steps-heading">[How the decision moves.]</h2>
+        </div>
+        <div class="section-body">
+          <ol>
+            <li id="next-step-one">[Action, owner, and timing.]</li>
+            <li id="next-step-two">[Action, owner, and timing.]</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer id="artifact-footer">[Sources, provenance, or confidentiality note.]</footer>
+</body>
+</html>
