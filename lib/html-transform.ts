@@ -6,6 +6,7 @@ export type TransformReviewOptions = {
   sdkScript: string;
   readAsset: AssetReader;
   previewBaseUrl: string | null;
+  previewRootUrl?: string | null;
   maxAssetBytes?: number;
   maxDocBytes?: number;
 };
@@ -20,6 +21,7 @@ export type TransformReviewResult = {
 type TransformOptions = {
   readAsset: AssetReader;
   previewBaseUrl: string | null;
+  previewRootUrl?: string | null;
   sdkScript: string;
   maxAssetBytes?: number;
   maxDocBytes?: number;
@@ -50,6 +52,37 @@ function localAssetReference(reference: string): { path: string; fragment: strin
   }
 }
 
+function previewAssetUrl(
+  reference: string,
+  previewBaseUrl: string,
+  previewRootUrl: string,
+): string | null {
+  const syntheticOrigin = "https://noted.invalid";
+  try {
+    const root = new URL(`${previewRootUrl.replace(/\/+$/, "")}/`, syntheticOrigin);
+    const base = new URL(`${previewBaseUrl.replace(/\/+$/, "")}/`, syntheticOrigin);
+    const resolved = new URL(reference.replaceAll("\\", "/"), base);
+    if (resolved.origin !== root.origin || !resolved.pathname.startsWith(root.pathname)) {
+      return null;
+    }
+    return URL_SCHEME.test(previewRootUrl)
+      ? resolved.href
+      : `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  } catch {
+    return null;
+  }
+}
+
+function replaceAttribute(markup: string, attribute: "href" | "src", value: string): string {
+  const pattern = new RegExp(`(\\b${attribute}\\s*=\\s*["'])[^"']*(["'])`, "i");
+  return markup.replace(pattern, (_match, before: string, after: string) => `${before}${value}${after}`);
+}
+
+function removeAttribute(markup: string, attribute: "href" | "src"): string {
+  const pattern = new RegExp(`\\s*\\b${attribute}\\s*=\\s*(["'])[^"']*\\1`, "i");
+  return markup.replace(pattern, "");
+}
+
 async function replaceMatches(
   input: string,
   pattern: RegExp,
@@ -78,22 +111,41 @@ async function transform(html: string, opts: TransformOptions): Promise<Transfor
 
   const load = async (reference: string) => {
     const local = localAssetReference(reference);
-    if (local === null) return null;
+    if (local === null) return { kind: "unchanged" } as const;
 
     const asset = await opts.readAsset(local.path);
     if (!asset) {
       skipped.push({ path: local.path, reason: "missing" });
-      if (opts.previewBaseUrl !== null) linked.push(local.path);
-      return null;
+      if (opts.previewBaseUrl === null) return { kind: "unchanged" } as const;
+      const href = previewAssetUrl(
+        reference,
+        opts.previewBaseUrl,
+        opts.previewRootUrl ?? opts.previewBaseUrl,
+      );
+      if (href === null) return { kind: "blocked" } as const;
+      linked.push(local.path);
+      return { kind: "linked", href } as const;
     }
     if (asset.bytes.length > maxAssetBytes) {
-      if (opts.previewBaseUrl !== null) linked.push(local.path);
-      else skipped.push({ path: local.path, reason: "over-cap" });
-      return null;
+      if (opts.previewBaseUrl === null) {
+        skipped.push({ path: local.path, reason: "over-cap" });
+        return { kind: "unchanged" } as const;
+      }
+      const href = previewAssetUrl(
+        reference,
+        opts.previewBaseUrl,
+        opts.previewRootUrl ?? opts.previewBaseUrl,
+      );
+      if (href === null) {
+        skipped.push({ path: local.path, reason: "over-cap" });
+        return { kind: "blocked" } as const;
+      }
+      linked.push(local.path);
+      return { kind: "linked", href } as const;
     }
 
     inlined.push(local.path);
-    return { ...asset, fragment: local.fragment };
+    return { kind: "inlined", ...asset, fragment: local.fragment } as const;
   };
 
   let result = await replaceMatches(
@@ -102,19 +154,23 @@ async function transform(html: string, opts: TransformOptions): Promise<Transfor
     async (match) => {
       const path = match[3];
       const asset = await load(path);
-      return asset ? `<style data-noted-inlined="${path}">${decoder.decode(asset.bytes)}</style>` : match[0];
+      if (asset.kind === "inlined") {
+        return `<style data-noted-inlined="${path}">${decoder.decode(asset.bytes)}</style>`;
+      }
+      if (asset.kind === "linked") return replaceAttribute(match[0], "href", asset.href);
+      return asset.kind === "blocked" ? "" : match[0];
     },
   );
 
   result = await replaceMatches(result, /<img\b[^>]*\bsrc\s*=\s*(["'])([^"']+)\1[^>]*>/gi, async (match) => {
     const path = match[2];
     const asset = await load(path);
-    if (!asset) return match[0];
+    if (asset.kind === "linked") return replaceAttribute(match[0], "src", asset.href);
+    if (asset.kind === "blocked") return removeAttribute(match[0], "src");
+    if (asset.kind === "unchanged") return match[0];
 
     const dataUrl = `data:${asset.mime};base64,${Buffer.from(asset.bytes).toString("base64")}${asset.fragment}`;
-    return match[0].replace(/(\bsrc\s*=\s*["'])[^"']*(["'])/i, (_value, before: string, after: string) => {
-      return `${before}${dataUrl}${after}`;
-    });
+    return replaceAttribute(match[0], "src", dataUrl);
   });
 
   result = await replaceMatches(
@@ -123,16 +179,13 @@ async function transform(html: string, opts: TransformOptions): Promise<Transfor
     async (match) => {
       const path = match[2];
       const asset = await load(path);
-      return asset ? `<script data-noted-inlined="${path}">${decoder.decode(asset.bytes)}</script>` : match[0];
+      if (asset.kind === "inlined") {
+        return `<script data-noted-inlined="${path}">${decoder.decode(asset.bytes)}</script>`;
+      }
+      if (asset.kind === "linked") return replaceAttribute(match[0], "src", asset.href);
+      return asset.kind === "blocked" ? "" : match[0];
     },
   );
-
-  if (linked.length > 0 && opts.previewBaseUrl !== null) {
-    const base = `<base href="${opts.previewBaseUrl}/">`;
-    if (!/<base\b[^>]*>/i.test(result)) {
-      result = /<head\b[^>]*>/i.test(result) ? result.replace(/<head\b[^>]*>/i, (head) => `${head}${base}`) : base + result;
-    }
-  }
 
   if (opts.sdkScript) {
     const bodyPattern = /<\/body\s*>/gi;

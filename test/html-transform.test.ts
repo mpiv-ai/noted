@@ -32,24 +32,30 @@ describe("transformForReview", () => {
     expect(r.srcdoc).toContain('src="data:image/png;base64,iVBORw==#view"');
     expect(r.inlined).toEqual(["my logo.png"]);
   });
-  it("adds the source-directory preview base when a local asset is missing", async () => {
-    const image = '<html><body><img src="missing.png#view"></body></html>';
-    const r = await transformForReview(image, { sdkScript: "", readAsset, previewBaseUrl: "/api/v1/file-previews/abc/docs" });
-    expect(r.srcdoc).toContain('<base href="/api/v1/file-previews/abc/docs/">');
+  it("rewrites only a missing local asset to its preview URL", async () => {
+    const image = '<html><body><a href="#details">Details</a><h2 id="details">Details</h2><img src="missing.png#view"></body></html>';
+    const r = await transformForReview(image, { sdkScript: "", readAsset, previewBaseUrl: "/api/v1/file-previews/abc/docs", previewRootUrl: "/api/v1/file-previews/abc" });
+    expect(r.srcdoc).toContain('href="#details"');
+    expect(r.srcdoc).toContain('src="/api/v1/file-previews/abc/docs/missing.png#view"');
+    expect(r.srcdoc).not.toContain("<base ");
     expect(r.linked).toEqual(["missing.png"]);
     expect(r.skipped).toEqual([{ path: "missing.png", reason: "missing" }]);
   });
-  it("falls back to <base href> for an asset over the cap when a preview url exists", async () => {
+  it("rewrites each over-cap asset to its preview URL", async () => {
     const r = await transformForReview(page, { sdkScript: "<script>S</script>", readAsset, previewBaseUrl: "/api/v1/file-previews/abc", maxAssetBytes: 3 });
-    expect(r.srcdoc).toContain('<base href="/api/v1/file-previews/abc/">');
+    expect(r.srcdoc).toContain('href="/api/v1/file-previews/abc/style.css"');
+    expect(r.srcdoc).toContain('src="/api/v1/file-previews/abc/pic.png"');
+    expect(r.srcdoc).toContain('src="/api/v1/file-previews/abc/app.js"');
+    expect(r.srcdoc).not.toContain("<base ");
     expect(r.linked).toContain("style.css");
     expect(r.skipped).toEqual([]);
   });
-  it("does not add a duplicate preview base", async () => {
-    const documentWithBase = page.replace("<head>", '<head><base href="/already/">');
-    const r = await transformForReview(documentWithBase, { sdkScript: "<script>S</script>", readAsset, previewBaseUrl: "/api/v1/file-previews/abc", maxAssetBytes: 3 });
-    expect(r.srcdoc.match(/<base\b/g)).toHaveLength(1);
-    expect(r.srcdoc).toContain('<base href="/already/">');
+  it("drops a fallback asset URL that would escape the preview root", async () => {
+    const image = '<html><body><img src="../../outside.png"></body></html>';
+    const r = await transformForReview(image, { sdkScript: "", readAsset, previewBaseUrl: "/api/v1/file-previews/abc/docs", previewRootUrl: "/api/v1/file-previews/abc" });
+    expect(r.srcdoc).toContain("<img>");
+    expect(r.srcdoc).not.toContain("outside.png");
+    expect(r.skipped).toContainEqual({ path: "../../outside.png", reason: "missing" });
   });
   it("reports a skipped asset when over cap and no preview url", async () => {
     const r = await transformForReview(page, { sdkScript: "<script>S</script>", readAsset, previewBaseUrl: null, maxAssetBytes: 3 });

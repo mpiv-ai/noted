@@ -183,6 +183,7 @@ async function readAndTransform(runtime: Runtime, session: Session, trigger: Rev
       loadToken: captured.revision.id,
     }),
     previewBaseUrl: documentPreviewBaseUrl,
+    previewRootUrl: preview.baseUrl,
     readAsset: assetReaderFor(
       runtime,
       session.hostId ?? undefined,
