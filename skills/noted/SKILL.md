@@ -19,9 +19,11 @@ skill is available.
    - `--view <thread>` shows it in another thread.
    - `--reply-to <thread>` sends the feedback somewhere other than the
      producing thread.
-4. End the turn with one short sentence telling the user the artifact is ready.
-   Do not poll or call `status` while waiting; feedback arrives as a new user
-   message.
+4. Tell the user the artifact is ready. If the requested work is complete or
+   further work requires their feedback, end the turn. Otherwise continue
+   independent authorized work; opening a review does not create an approval
+   gate. Do not poll or call `status` merely to wait for feedback; it arrives
+   as a new user message.
 
 Read [references/commands.md](references/commands.md) before using cross-thread
 routing, reopening, JSON output, or knowledge-base filing.
@@ -42,7 +44,8 @@ and the requested change.
    the changed file as a new revision after the turn and refreshes the panel.
 4. When useful, run `bb noted reply <text>` to leave a short implementation note
    in the review conversation.
-5. End with a concise summary of what changed.
+5. Finish the requested feedback work and any remaining independent authorized
+   work, then give a concise summary of what changed.
 
 Do not treat the selector itself as the requested copy. It identifies where the
 user commented. Keep factual claims and project constraints intact unless the

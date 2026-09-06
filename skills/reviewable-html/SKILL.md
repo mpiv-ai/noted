@@ -73,9 +73,11 @@ bb noted open <artifact.html>
 For a substantial deliverable in an interactive bb thread, open it for review
 by default. Do not open it when the user says not to or when the artifact is only
 an intermediate input to another task. When a parent or designated review thread
-should see it, pass `--view parent` or the specific thread. End the turn after
-opening it; do not poll. Apply incoming targeted feedback to the same file so
-the open panel advances through revisions.
+should see it, pass `--view parent` or the specific thread. End the turn when
+the requested work is complete or further work depends on feedback; otherwise
+continue independent authorized work. Opening Noted is not a new approval
+gate. Do not poll for feedback. Apply incoming targeted feedback to the same
+file so the open panel advances through revisions.
 
 ## Done
 
