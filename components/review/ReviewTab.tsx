@@ -19,6 +19,12 @@ type ReviewState =
   | { status: "loaded"; payload: SessionPayload }
   | { status: "error"; message: string };
 type RetryState = { input: SendInput; message: string };
+type MarkdownDraft = { content: string; sha256: string };
+
+// A panel can remount as the user moves through BB. Drafts are keyed by their
+// review session so they cannot be saved into another file.
+const draftsBySession = new Map<string, MarkdownDraft>();
+const windowsBySession = new Map<string, Window>();
 
 function getSessionId(params: PluginThreadPanelProps["params"]): string | null {
   if (
@@ -33,11 +39,28 @@ function getSessionId(params: PluginThreadPanelProps["params"]): string | null {
   return null;
 }
 
-export default function ReviewTab({ params }: PluginThreadPanelProps) {
+export default function ReviewTab({
+  threadId,
+  params,
+  standalone = false,
+}: PluginThreadPanelProps & { standalone?: boolean }) {
+  const sessionId = getSessionId(params);
+  if (sessionId === null) {
+    return <div role="alert">Noted: this tab needs a sessionId.</div>;
+  }
+  return <ReviewTabForSession key={sessionId} threadId={threadId} params={params} standalone={standalone} />;
+}
+
+function ReviewTabForSession({
+  params,
+  standalone = false,
+}: PluginThreadPanelProps & { standalone?: boolean }) {
   const sessionId = getSessionId(params);
   const rpc = useRpc<typeof rpcContract>();
   const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const loadVersion = useRef(0);
   const [state, setState] = useState<ReviewState>({ status: "loading" });
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [queued, setQueued] = useState<SessionPayload["queued"]>([]);
   const [batches, setBatches] = useState<SessionPayload["batches"]>([]);
   const [replies, setReplies] = useState<SessionPayload["replies"]>([]);
@@ -45,21 +68,49 @@ export default function ReviewTab({ params }: PluginThreadPanelProps) {
   const [mode, setMode] = useState<DeliveryMode>("default");
   const [sending, setSending] = useState(false);
   const [handled, setHandled] = useState(0);
+  const [draft, setDraftState] = useState<MarkdownDraft | null>(
+    () => sessionId === null ? null : draftsBySession.get(sessionId) ?? null,
+  );
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [windowBlocked, setWindowBlocked] = useState(false);
+  useEffect(() => {
+    if (draft === null) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [draft !== null]);
   const [retry, setRetry] = useState<RetryState | null>(null);
+
+  const setDraft = useCallback((next: MarkdownDraft | null) => {
+    if (sessionId === null) return;
+    if (next === null) draftsBySession.delete(sessionId);
+    else draftsBySession.set(sessionId, next);
+    setDraftState(next);
+  }, [sessionId]);
 
   const loadSession = useCallback(() => {
     if (sessionId === null) {
       return;
     }
 
-    setState({ status: "loading" });
+    const requestVersion = ++loadVersion.current;
+    setRefreshError(null);
+    setState((current) => current.status === "loaded" ? current : { status: "loading" });
     void rpc.call("getSession", { sessionId }).then(
-      (payload) => setState({ status: "loaded", payload }),
-      (error: unknown) =>
-        setState({
-          status: "error",
-          message: error instanceof Error ? error.message : String(error),
-        }),
+      (payload) => {
+        if (requestVersion === loadVersion.current) setState({ status: "loaded", payload });
+      },
+      (error: unknown) => {
+        if (requestVersion !== loadVersion.current) return;
+        setState((current) => {
+          if (current.status === "loaded") {
+            setRefreshError(`Showing the last loaded review. ${error instanceof Error ? error.message : String(error)}`);
+            return current;
+          }
+          return { status: "error", message: error instanceof Error ? error.message : String(error) };
+        });
+      },
     );
   }, [rpc, sessionId]);
 
@@ -76,6 +127,8 @@ export default function ReviewTab({ params }: PluginThreadPanelProps) {
     }
   });
 
+  useRealtime("noted:capabilities-changed", loadSession);
+
   const loadedPayload = state.status === "loaded" ? state.payload : null;
   const bridge = useArtifactBridge(frameRef, loadedPayload?.revision.id ?? null);
 
@@ -89,6 +142,12 @@ export default function ReviewTab({ params }: PluginThreadPanelProps) {
     setReplies(loadedPayload.replies);
     setMode(loadedPayload.session.deliveryMode);
   }, [loadedPayload]);
+
+  useEffect(() => {
+    if (loadedPayload?.markdown === null && draft !== null) {
+      setDraft(null);
+    }
+  }, [draft, loadedPayload?.markdown, setDraft]);
 
   useEffect(() => {
     if (bridge.events.length <= handled || sessionId === null) {
@@ -175,6 +234,22 @@ export default function ReviewTab({ params }: PluginThreadPanelProps) {
     return <div>Loading Noted review…</div>;
   }
 
+  const { capabilities } = loadedPayload;
+  const canEditMarkdown =
+    capabilities.markdownEditing &&
+    loadedPayload.markdown !== null &&
+    loadedPayload.session.status === "open";
+  const revisionChanged = draft !== null && loadedPayload.revision.sha256 !== draft.sha256;
+  const reviewWindowPath = `/plugins/noted/review/${encodeURIComponent(sessionId)}`;
+
+  if (standalone && !capabilities.newWindow) {
+    return (
+      <div className="p-4 text-sm" role="status">
+        Opening reviews in a new window is disabled for this Noted session.
+      </div>
+    );
+  }
+
   const send = (endSession: boolean) => {
     const trimmedFreeform = freeform.trim();
     executeSend({
@@ -191,15 +266,69 @@ export default function ReviewTab({ params }: PluginThreadPanelProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between border-b p-2 text-xs">
-        <span>{loadedPayload.displayPath}</span>
-        <span>revision {loadedPayload.revisionNumber}</span>
+      <div className="flex items-center justify-between gap-3 border-b p-2 text-xs">
+        <span className="min-w-0 truncate">{loadedPayload.displayPath}</span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span>revision {loadedPayload.revisionNumber}</span>
+          {capabilities.newWindow ? <button type="button" className="rounded-md border px-2 py-1" onClick={() => {
+            if (standalone) {
+              window.focus();
+              return;
+            }
+            const existing = windowsBySession.get(sessionId);
+            if (existing !== undefined && !existing.closed) {
+              existing.focus();
+              setWindowBlocked(false);
+              return;
+            }
+            const popup = window.open(reviewWindowPath, `noted-review-${sessionId}`, "popup,width=1200,height=900");
+            if (popup !== null) windowsBySession.set(sessionId, popup);
+            setWindowBlocked(popup === null);
+            popup?.focus();
+          }}>New window</button> : null}
+          {canEditMarkdown && draft === null ? (
+            <button type="button" className="rounded-md border px-2 py-1" onClick={() => {
+              setDraft({ content: loadedPayload.markdown ?? "", sha256: loadedPayload.revision.sha256 });
+              setEditError(null);
+            }}>Edit Markdown</button>
+          ) : null}
+        </div>
       </div>
-      <ArtifactFrame
+      {windowBlocked ? <p role="alert" className="border-b p-2 text-sm">If no review window opened, <a className="underline" href={reviewWindowPath} target="_blank" rel="noreferrer">open this review</a>.</p> : null}
+      {refreshError ? <p role="status" className="border-b p-2 text-sm">{refreshError}</p> : null}
+      {draft !== null ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+          <div>
+            <label htmlFor="noted-markdown" className="text-sm font-medium">Markdown source</label>
+            <p className="text-xs text-muted-foreground">Editing changes the source file. The preview stays read-only.</p>
+          </div>
+          <textarea id="noted-markdown" className="min-h-0 flex-1 resize-none rounded-md border bg-background p-3 font-mono text-sm" value={draft.content} disabled={saving} onChange={(event) => setDraft({ ...draft, content: event.target.value })} />
+          {revisionChanged ? <p role="alert" className="text-sm">The file changed while you were editing. Your draft is preserved and Save is disabled.</p> : null}
+          {!canEditMarkdown ? <p role="alert" className="text-sm">Markdown editing is unavailable for this review. Your draft is preserved locally.</p> : null}
+          {editError ? <p role="alert" className="text-sm">{editError}</p> : null}
+          <div className="flex gap-2">
+            <button type="button" className="rounded-md border px-3 py-1 text-sm disabled:opacity-50" disabled={saving || revisionChanged || !canEditMarkdown} onClick={() => {
+              setSaving(true);
+              setEditError(null);
+              const savingDraft = draft;
+              void rpc.call("saveMarkdown", { sessionId, content: savingDraft.content, expectedSha256: savingDraft.sha256 }).then(() => {
+                if (draftsBySession.get(sessionId) === savingDraft) setDraft(null);
+                loadSession();
+              }, (error: unknown) => {
+                setEditError(`Save failed. Your draft is preserved. ${error instanceof Error ? error.message : String(error)}`);
+              }).finally(() => setSaving(false));
+            }}>{saving ? "Saving…" : "Save"}</button>
+            <button type="button" className="rounded-md border px-3 py-1 text-sm" disabled={saving} onClick={() => {
+              setDraft(null);
+              setEditError(null);
+            }}>Cancel</button>
+          </div>
+        </div>
+      ) : <ArtifactFrame
         frameRef={frameRef}
         srcdoc={loadedPayload.document.srcdoc}
         title={`Noted: ${loadedPayload.displayPath}`}
-      />
+      />}
       <div className="max-h-[45%] space-y-3 overflow-auto border-t p-3">
         <QueueList
           items={queued}

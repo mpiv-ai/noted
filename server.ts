@@ -7,13 +7,14 @@ import { buildFeedbackMessage } from "./lib/message";
 import { relativePathWithinRoot, resolveArtifact, resolveRole } from "./lib/resolve";
 import { rpcContract, type OpenSessionInput } from "./lib/rpc";
 import { buildSdkScript } from "./lib/sdk-script";
-import { sourceDocumentHtml } from "./lib/source-document";
+import { isMarkdownPath, sourceDocumentHtml } from "./lib/source-document";
 import { openStore, type Revision, type Session, type Store } from "./lib/store";
 
 type Runtime = {
   bb: BbPluginApi;
   store: Store;
   dataDir: string;
+  capabilities: { newWindow: boolean; markdownEditing: boolean };
 };
 
 type ChangeReason = "revision" | "queue" | "batch" | "reply" | "ended" | "roles";
@@ -204,6 +205,8 @@ async function sessionPayload(runtime: Runtime, sessionId: string, trigger: Revi
       revision: transformed.revision,
       revisionNumber: revisions.length,
       displayPath: await displayPathFor(runtime, session),
+      capabilities: runtime.capabilities,
+      markdown: isMarkdownPath(session.absolutePath) ? transformed.html : null,
       document: transformed.document,
       queued: runtime.store.listQueued(session.id),
       batches: runtime.store.listBatches(session.id),
@@ -555,7 +558,15 @@ async function runNotedCli(
 export default async function plugin(bb: BbPluginApi) {
   const db = bb.storage.database();
   const store = openStore(db, (database, statements) => bb.storage.migrate(database, statements));
-  const runtime: Runtime = { bb, store, dataDir: bb.server.experimental_dataDir };
+  const settings = bb.settings.define({
+    newWindow: { type: "boolean", label: "Review windows", default: false },
+    markdownEditing: { type: "boolean", label: "Markdown editing", default: false },
+  });
+  const runtime: Runtime = { bb, store, dataDir: bb.server.experimental_dataDir, capabilities: await settings.get() };
+  settings.onChange((next) => {
+    runtime.capabilities = next;
+    bb.realtime.publish("noted:capabilities-changed", next);
+  });
   bb.cli.register({
     name: "noted",
     summary: "Review HTML and Markdown artifacts with the user in the side panel (built on Lavish)",
@@ -576,6 +587,39 @@ export default async function plugin(bb: BbPluginApi) {
       const result = await sessionPayload(runtime, sessionId, "manual");
       if (result.changed) publish(runtime, sessionId, result.payload.revision.id, "revision");
       return result.payload;
+    },
+    async saveMarkdown({ sessionId, content, expectedSha256 }) {
+      const session = requireSession(store, sessionId);
+      if (!runtime.capabilities.markdownEditing) throw new Error("Markdown editing is disabled.");
+      if (session.status !== "open") throw new Error("This review has ended.");
+      if (!isMarkdownPath(session.absolutePath)) throw new Error("Only Markdown files can be edited.");
+      let written;
+      try {
+        written = await bb.sdk.files.write({
+          hostId: session.hostId ?? undefined,
+          path: session.absolutePath,
+          content,
+          contentEncoding: "utf8",
+          expectedSha256,
+        });
+        if (written.outcome === "conflict") throw new Error("The file changed since editing began. Your draft has not been saved.");
+      } catch (error) {
+        bb.log.warn(JSON.stringify({ event: "noted.markdown.save", sessionId, outcome: "failed" }));
+        throw error;
+      }
+      const { sha256, sizeBytes } = written;
+      try {
+        const latest = store.latestRevision(sessionId);
+        const revision = latest?.sha256 === sha256 ? latest : store.addRevision(sessionId, sha256, sizeBytes, "manual");
+        publish(runtime, sessionId, revision.id, "revision");
+        bb.log.info(JSON.stringify({ event: "noted.markdown.save", sessionId, outcome: "saved", revisionId: revision.id }));
+      } catch {
+        // The file is committed. getSession reconciles its revision on the next read.
+        try {
+          bb.log.warn(JSON.stringify({ event: "noted.markdown.save", sessionId, outcome: "saved_refresh_pending" }));
+        } catch { /* The plugin may have been disposed while the host write completed. */ }
+      }
+      return { sha256 };
     },
     listSessions({ threadId }) {
       return { sessions: store.listSessionsForThread(threadId) };

@@ -55,6 +55,29 @@ Opening one of those files normally keeps BB's rendered preview visible with a
 **Review with Noted** button above it. As with every BB file opener, a user can
 pin BB Preview or another installed opener for an extension in Settings.
 
+## Review windows and Markdown editing
+
+These features are disabled by default until enabled in the plugin settings:
+
+```sh
+bb plugin config noted set newWindow true
+bb plugin config noted set markdownEditing true
+```
+
+**New window** opens the same HTML or Markdown review in a separate browser
+window, with its annotations and feedback controls. Browser popup permissions
+apply. BB desktop sends the link to the system browser; this does not create a
+native BB desktop window.
+
+**Edit Markdown** opens a source editor for `.md` and `.markdown` reviews.
+**Save** updates the original file on its owning host and refreshes other
+viewers. **Cancel** discards the draft without writing. HTML remains read-only.
+If the file changes while you are editing, the save is rejected and your draft
+is retained so you can reconcile it with the current file.
+
+Set either setting to `false` to disable that feature without reinstalling.
+Disabling Markdown editing also rejects saves on the server.
+
 ## Agent skills
 
 Installing Noted contributes two skills to new bb agent sessions:
@@ -72,7 +95,7 @@ receive skill changes mid-session.
 
 ## Trust and data
 
-BB plugins run with full trust. Noted reads only artifacts and assets that you open. It stores sessions, revisions, and feedback in BB-managed SQLite. The `bb noted file --to` command writes exports only to the destination that you provide. Noted sends feedback to the BB thread that you select and adds no independent telemetry.
+BB plugins run with full trust. Noted reads only artifacts and assets that you open. When Markdown editing is enabled, saving writes to the original reviewed file with a source-hash conflict check. It stores sessions, revisions, and feedback in BB-managed SQLite. The `bb noted file --to` command writes exports only to the destination that you provide. Noted sends feedback to the BB thread that you select and adds no independent telemetry.
 
 Review the [security policy](SECURITY.md) before reporting a vulnerability.
 
