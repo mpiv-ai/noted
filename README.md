@@ -57,6 +57,12 @@ pin BB Preview or another installed opener for an extension in Settings.
 
 ## Review windows and Markdown editing
 
+**Open in editor** opens the saved Markdown source using BB's preferred file
+app on the user's machine. It requires BB's connected local helper; files on
+another host require a remote-capable editor. BB's preference may override the
+OS default Markdown app. Unsaved Noted edits remain in Noted. This choice uses
+the `markdownEditing` setting and is available in both review surfaces.
+
 These features are disabled by default until enabled in the plugin settings:
 
 ```sh

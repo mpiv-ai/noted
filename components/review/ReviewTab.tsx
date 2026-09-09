@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
+import { useBbNavigate, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { PluginThreadPanelProps } from "@get-bb/plugin-sdk/app";
 import type { z } from "zod";
 
@@ -57,6 +57,8 @@ function ReviewTabForSession({
 }: PluginThreadPanelProps & { standalone?: boolean }) {
   const sessionId = getSessionId(params);
   const rpc = useRpc<typeof rpcContract>();
+  const navigate = useBbNavigate();
+  const [externalEditorError, setExternalEditorError] = useState<string | null>(null);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const loadVersion = useRef(0);
   const [state, setState] = useState<ReviewState>({ status: "loading" });
@@ -268,7 +270,7 @@ function ReviewTabForSession({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-3 border-b p-2 text-xs">
         <span className="min-w-0 truncate">{loadedPayload.displayPath}</span>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <span>revision {loadedPayload.revisionNumber}</span>
           {capabilities.newWindow ? <button type="button" className="rounded-md border px-2 py-1" onClick={() => {
             if (standalone) {
@@ -286,6 +288,24 @@ function ReviewTabForSession({
             setWindowBlocked(popup === null);
             popup?.focus();
           }}>New window</button> : null}
+          {canEditMarkdown ? (
+            <button type="button" className="rounded-md border px-2 py-1 disabled:opacity-50"
+              disabled={!loadedPayload.session.hostId || saving}
+              title={loadedPayload.session.hostId ? "Open the saved file in your preferred app; unsaved Noted edits stay here." : "This review has no file host identity. Reopen the file to use an external editor."}
+              onClick={() => {
+                const { hostId, absolutePath } = loadedPayload.session;
+                if (!hostId) return;
+                setExternalEditorError(null);
+                try {
+                  const accepted = navigate.experimental_openFileExternally({
+                    target: { kind: "host", hostId, path: absolutePath }, location: null,
+                  });
+                  if (!accepted) setExternalEditorError("BB could not open the file in an external editor.");
+                } catch {
+                  setExternalEditorError("BB could not open the file in an external editor.");
+                }
+              }}>Open in editor</button>
+          ) : null}
           {canEditMarkdown && draft === null ? (
             <button type="button" className="rounded-md border px-2 py-1" onClick={() => {
               setDraft({ content: loadedPayload.markdown ?? "", sha256: loadedPayload.revision.sha256 });
@@ -295,6 +315,7 @@ function ReviewTabForSession({
         </div>
       </div>
       {windowBlocked ? <p role="alert" className="border-b p-2 text-sm">If no review window opened, <a className="underline" href={reviewWindowPath} target="_blank" rel="noreferrer">open this review</a>.</p> : null}
+      {externalEditorError ? <p role="alert" className="border-b p-2 text-sm">{externalEditorError}</p> : null}
       {refreshError ? <p role="status" className="border-b p-2 text-sm">{refreshError}</p> : null}
       {draft !== null ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">

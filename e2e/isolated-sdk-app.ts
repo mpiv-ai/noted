@@ -2,6 +2,10 @@ import { useEffect } from "react";
 
 type RpcInput = Record<string, unknown>;
 
+export function useBbNavigate() {
+  return { experimental_openFileExternally: () => false };
+}
+
 declare global {
   interface Window {
     __notedIsolatedRpc: {
