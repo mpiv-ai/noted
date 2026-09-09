@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
+import { experimental_FileLink as FileLink, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { PluginThreadPanelProps } from "@get-bb/plugin-sdk/app";
 import type { z } from "zod";
 
@@ -267,8 +267,14 @@ function ReviewTabForSession({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-3 border-b p-2 text-xs">
-        <span className="min-w-0 truncate">{loadedPayload.displayPath}</span>
-        <div className="flex shrink-0 items-center gap-2">
+        {canEditMarkdown && loadedPayload.session.hostId ? (
+          <FileLink className="min-w-0 truncate underline"
+            title="Right-click → Open in → Default App to open the saved Markdown file."
+            target={{ kind: "host", hostId: loadedPayload.session.hostId, path: loadedPayload.session.absolutePath }}>
+            {loadedPayload.displayPath}
+          </FileLink>
+        ) : <span className="min-w-0 truncate">{loadedPayload.displayPath}</span>}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <span>revision {loadedPayload.revisionNumber}</span>
           {capabilities.newWindow ? <button type="button" className="rounded-md border px-2 py-1" onClick={() => {
             if (standalone) {
@@ -295,6 +301,9 @@ function ReviewTabForSession({
         </div>
       </div>
       {windowBlocked ? <p role="alert" className="border-b p-2 text-sm">If no review window opened, <a className="underline" href={reviewWindowPath} target="_blank" rel="noreferrer">open this review</a>.</p> : null}
+      {canEditMarkdown && loadedPayload.session.hostId ? (
+        <p className="border-b p-2 text-xs">Right-click the filename → Open in → Default App to use your default Markdown editor. Opens the saved file.</p>
+      ) : null}
       {refreshError ? <p role="status" className="border-b p-2 text-sm">{refreshError}</p> : null}
       {draft !== null ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">

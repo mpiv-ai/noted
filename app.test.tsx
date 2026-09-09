@@ -12,6 +12,53 @@ const revision = { id: "r1", sessionId: "s1", sha256: sha, sizeBytes: 1, recorde
 const payload = { session, revision, revisionNumber: 1, displayPath: "plan.html", capabilities: { newWindow: true, markdownEditing: true }, markdown: null, document: { srcdoc: "<html><body><p id='a'>Hi</p></body></html>", inlined: [], linked: [], skipped: [] }, queued: [], batches: [], replies: [] };
 
 describe("Noted review tab", () => {
+  it("links the original Markdown file on its declared host", async () => {
+    const openFilePreview = vi.fn(() => true);
+    const action = app.threadPanelActions.find((a) => a.id === "review")!;
+    const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s1" } }, {
+      rpc: { getSession: () => ({ ...payload, markdown: "# Source", session: { ...session, hostId: "mac-host", absolutePath: "/notes/source.md" } }) },
+      openFilePreview,
+    });
+    fireEvent.click(await slot.findByRole("link", { name: "plan.html" }));
+    expect(openFilePreview).toHaveBeenCalledWith({ target: { kind: "host", hostId: "mac-host", path: "/notes/source.md" }, location: null });
+  });
+
+  it("does not offer an external editor for HTML", async () => {
+    const action = app.threadPanelActions.find((a) => a.id === "review")!;
+    const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s1" } }, { rpc: { getSession: () => payload } });
+    await slot.findByText("revision 1");
+    expect(slot.queryByRole("link", { name: "plan.html" })).toBeNull();
+  });
+
+  it("honors the Markdown editing switch for external opening", async () => {
+    const action = app.threadPanelActions.find((a) => a.id === "review")!;
+    const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s1" } }, {
+      rpc: { getSession: () => ({ ...payload, markdown: "# Source", capabilities: { ...payload.capabilities, markdownEditing: false } }) },
+    });
+    await slot.findByText("revision 1");
+    expect(slot.queryByRole("link", { name: "plan.html" })).toBeNull();
+  });
+
+  it("opens from a standalone review without losing an unsaved Noted draft", async () => {
+    const openFilePreview = vi.fn(() => true);
+    const panel = app.navPanels.find((p) => p.id === "review-window")!;
+    const slot = renderSlot(panel, { subPath: "external-draft" }, {
+      rpc: { getSession: () => ({ ...payload, markdown: "# Saved", session: { ...session, hostId: "mac-host" } }) }, openFilePreview,
+    });
+    fireEvent.click(await slot.findByRole("button", { name: "Edit Markdown" }));
+    fireEvent.change(slot.getByRole("textbox", { name: "Markdown source" }), { target: { value: "# Unsaved" } });
+    fireEvent.click(slot.getByRole("link", { name: "plan.html" }));
+    expect(openFilePreview).toHaveBeenCalledOnce();
+    expect((slot.getByRole("textbox", { name: "Markdown source" }) as HTMLTextAreaElement).value).toBe("# Unsaved");
+    fireEvent.click(slot.getByRole("button", { name: "Cancel" }));
+  });
+
+  it("keeps a plain filename when the original file host is unknown", async () => {
+    const action = app.threadPanelActions.find((a) => a.id === "review")!;
+    const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s1" } }, { rpc: { getSession: () => ({ ...payload, markdown: "# Source" }) } });
+    await slot.findByText("revision 1");
+    expect(slot.queryByRole("link", { name: "plan.html" })).toBeNull();
+  });
   it("registers the review action and renders a sandboxed iframe from the session document", async () => {
     const action = app.threadPanelActions.find((a) => a.id === "review")!;
     expect(action.layout).toBe("flush");

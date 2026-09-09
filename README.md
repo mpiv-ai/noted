@@ -57,6 +57,14 @@ pin BB Preview or another installed opener for an extension in Settings.
 
 ## Review windows and Markdown editing
 
+For Markdown, right-click the linked filename and choose **Open in → Default
+App** to use the operating system's default Markdown editor. BB supplies the
+same file menu in its web and macOS clients. It opens the saved original file;
+unsaved Noted edits remain in Noted. This requires BB's connected local helper
+and a file on the user's machine. In a browser, enable **Settings → Files →
+Local editor integration** if the menu has no external apps. Files on other hosts need a compatible remote
+editor from the menu. The `markdownEditing` setting controls this choice.
+
 These features are disabled by default until enabled in the plugin settings:
 
 ```sh
