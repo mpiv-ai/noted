@@ -63,6 +63,8 @@ const sessionPayloadSchema = z.object({
   revision: revisionSchema,
   revisionNumber: z.number(),
   displayPath: z.string(),
+  capabilities: z.object({ newWindow: z.boolean(), markdownEditing: z.boolean() }),
+  markdown: z.string().nullable(),
   document: z.object({
     srcdoc: z.string(),
     inlined: z.array(z.string()),
@@ -92,6 +94,10 @@ export const rpcContract = defineRpcContract({
   getSession: {
     input: z.object({ sessionId: z.string() }).strict(),
     output: sessionPayloadSchema,
+  },
+  saveMarkdown: {
+    input: z.object({ sessionId: z.string(), content: z.string(), expectedSha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
+    output: z.object({ sha256: z.string() }),
   },
   listSessions: {
     input: z.object({ threadId: z.string() }).strict(),

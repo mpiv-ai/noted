@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 
 const app = await loadPluginApp(() => import("./app"));
 afterEach(cleanup);
 
 const session = { id: "s1", producerThreadId: "t1", viewThreadId: "t1", replyThreadId: "t1", projectId: null, hostId: null, absolutePath: "/repo/plan.html", sourceKind: "workspace", status: "open", endedBy: null, deliveryMode: "default", createdAt: 0, updatedAt: 0 };
-const revision = { id: "r1", sessionId: "s1", sha256: "a", sizeBytes: 1, recordedAt: 0, trigger: "open" };
-const payload = { session, revision, revisionNumber: 1, displayPath: "plan.html", document: { srcdoc: "<html><body><p id='a'>Hi</p></body></html>", inlined: [], linked: [], skipped: [] }, queued: [], batches: [], replies: [] };
+const sha = "a".repeat(64);
+const revision = { id: "r1", sessionId: "s1", sha256: sha, sizeBytes: 1, recordedAt: 0, trigger: "open" };
+const payload = { session, revision, revisionNumber: 1, displayPath: "plan.html", capabilities: { newWindow: true, markdownEditing: true }, markdown: null, document: { srcdoc: "<html><body><p id='a'>Hi</p></body></html>", inlined: [], linked: [], skipped: [] }, queued: [], batches: [], replies: [] };
 
 describe("Noted review tab", () => {
   it("registers the review action and renders a sandboxed iframe from the session document", async () => {
@@ -49,9 +50,155 @@ describe("Noted review tab", () => {
     await waitFor(() => expect(calls).toEqual(["queue:#a:shorter", "send:undefined:false"]));
     await slot.findByText(/Noted: feedback on plan.html/);
   });
+
+  it("opens the Markdown source editor, saves its source, then reloads the preview", async () => {
+    const markdown = {
+      ...payload,
+      displayPath: "notes.md",
+      markdown: "# First draft",
+      document: { ...payload.document, srcdoc: "<h1>First draft</h1>" },
+    };
+    const refreshed = {
+      ...markdown,
+      revision: { ...revision, id: "r2", sha256: "b".repeat(64) },
+      revisionNumber: 2,
+      document: { ...markdown.document, srcdoc: "<h1>Saved draft</h1>" },
+    };
+    const getSession = vi.fn().mockResolvedValueOnce(markdown).mockResolvedValueOnce(refreshed);
+    const action = app.threadPanelActions.find((a) => a.id === "review")!;
+    const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s-save" } }, {
+      rpc: { getSession, saveMarkdown: () => ({ sha256: "b".repeat(64) }) },
+      context: { threadId: "t1", projectId: null },
+    });
+
+    fireEvent.click(await slot.findByRole("button", { name: "Edit Markdown" }));
+    const editor = slot.getByLabelText("Markdown source") as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: "# Saved draft" } });
+    fireEvent.click(slot.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(slot.inspection.rpcCalls).toContainEqual({
+      method: "saveMarkdown",
+      input: { sessionId: "s-save", content: "# Saved draft", expectedSha256: sha },
+    }));
+    await waitFor(() => expect(slot.getByTitle("Noted: notes.md").getAttribute("srcdoc")).toContain("Saved draft"));
+    expect(slot.queryByLabelText("Markdown source")).toBeNull();
+  });
+
+  it("keeps a Markdown draft after a failed save", async () => {
+    const markdown = { ...payload, displayPath: "notes.md", markdown: "# First draft" };
+    const action = app.threadPanelActions.find((a) => a.id === "review")!;
+    const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s1" } }, {
+      rpc: { getSession: () => markdown, saveMarkdown: () => Promise.reject(new Error("File changed")) },
+      context: { threadId: "t1", projectId: null },
+    });
+
+    fireEvent.click(await slot.findByRole("button", { name: "Edit Markdown" }));
+    const editor = slot.getByLabelText("Markdown source") as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: "# Keep this draft" } });
+    fireEvent.click(slot.getByRole("button", { name: "Save" }));
+
+    expect(await slot.findByText(/Save failed\. Your draft is preserved/)).toBeTruthy();
+    expect((slot.getByLabelText("Markdown source") as HTMLTextAreaElement).value).toBe("# Keep this draft");
+  });
+
+  it("focuses an existing review window after the panel remounts", async () => {
+    const action = app.threadPanelActions.find((a) => a.id === "review")!;
+    const popup = { closed: false, focus: vi.fn() } as unknown as Window;
+    const open = vi.spyOn(window, "open").mockReturnValue(popup);
+    const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s-popup" } }, {
+      rpc: { getSession: () => payload }, context: { threadId: "t1", projectId: null },
+    });
+
+    const button = await slot.findByRole("button", { name: "New window" });
+    fireEvent.click(button);
+    slot.lifecycle.unmount();
+    const remounted = renderSlot(action, { threadId: "t1", params: { sessionId: "s-popup" } }, {
+      rpc: { getSession: () => payload }, context: { threadId: "t1", projectId: null },
+    });
+    fireEvent.click(await remounted.findByRole("button", { name: "New window" }));
+
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith("/plugins/noted/review/s-popup", "noted-review-s-popup", "popup,width=1200,height=900");
+    expect(popup.focus).toHaveBeenCalledTimes(2);
+    open.mockRestore();
+  });
+
+  it("offers the review-link fallback when a window does not open", async () => {
+    const action = app.threadPanelActions.find((a) => a.id === "review")!;
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s-blocked" } }, {
+      rpc: { getSession: () => payload }, context: { threadId: "t1", projectId: null },
+    });
+    fireEvent.click(await slot.findByRole("button", { name: "New window" }));
+    const fallback = await slot.findByRole("link", { name: "open this review" });
+    expect(fallback.getAttribute("href")).toBe("/plugins/noted/review/s-blocked");
+    open.mockRestore();
+  });
+
+  it("preserves a draft and disables Save when a newer revision arrives", async () => {
+    const markdown = { ...payload, displayPath: "notes.md", markdown: "# First draft" };
+    const newer = { ...markdown, revision: { ...revision, id: "r2", sha256: "b".repeat(64) }, revisionNumber: 2 };
+    const getSession = vi.fn().mockResolvedValueOnce(markdown).mockResolvedValueOnce(newer);
+    const action = app.threadPanelActions.find((a) => a.id === "review")!;
+    const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s-conflict" } }, {
+      rpc: { getSession }, context: { threadId: "t1", projectId: null },
+    });
+    fireEvent.click(await slot.findByRole("button", { name: "Edit Markdown" }));
+    fireEvent.change(slot.getByLabelText("Markdown source"), { target: { value: "# Keep this draft" } });
+    await slot.behavior.emitRealtime("noted:session-changed", { sessionId: "s-conflict" });
+
+    expect(await slot.findByText(/The file changed while you were editing/)).toBeTruthy();
+    expect((slot.getByLabelText("Markdown source") as HTMLTextAreaElement).value).toBe("# Keep this draft");
+    expect(slot.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
+  });
+
+  it("does not let an earlier save clear a newer draft after remount", async () => {
+    const markdown = { ...payload, displayPath: "notes.md", markdown: "# First draft" };
+    let resolveSave: ((result: { sha256: string }) => void) | undefined;
+    const save = new Promise<{ sha256: string }>((resolve) => { resolveSave = resolve; });
+    const action = app.threadPanelActions.find((a) => a.id === "review")!;
+    const first = renderSlot(action, { threadId: "t1", params: { sessionId: "s-pending" } }, {
+      rpc: { getSession: () => markdown, saveMarkdown: () => save }, context: { threadId: "t1", projectId: null },
+    });
+    fireEvent.click(await first.findByRole("button", { name: "Edit Markdown" }));
+    fireEvent.change(first.getByLabelText("Markdown source"), { target: { value: "# Earlier draft" } });
+    fireEvent.click(first.getByRole("button", { name: "Save" }));
+    first.lifecycle.unmount();
+
+    const remounted = renderSlot(action, { threadId: "t1", params: { sessionId: "s-pending" } }, {
+      rpc: { getSession: () => markdown, saveMarkdown: () => save }, context: { threadId: "t1", projectId: null },
+    });
+    const editor = await remounted.findByLabelText("Markdown source") as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: "# Newer draft" } });
+    await act(async () => { resolveSave?.({ sha256: "b".repeat(64) }); });
+
+    expect((remounted.getByLabelText("Markdown source") as HTMLTextAreaElement).value).toBe("# Newer draft");
+    remounted.lifecycle.unmount();
+    const restored = renderSlot(action, { threadId: "t1", params: { sessionId: "s-pending" } }, {
+      rpc: { getSession: () => markdown, saveMarkdown: () => save }, context: { threadId: "t1", projectId: null },
+    });
+    expect((await restored.findByLabelText("Markdown source") as HTMLTextAreaElement).value).toBe("# Newer draft");
+  });
+
+  it("does not offer source editing for HTML", async () => {
+    const action = app.threadPanelActions.find((a) => a.id === "review")!;
+    const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s1" } }, {
+      rpc: { getSession: () => payload }, context: { threadId: "t1", projectId: null },
+    });
+    await slot.findByTitle("Noted: plan.html");
+    expect(slot.queryByRole("button", { name: "Edit Markdown" })).toBeNull();
+  });
 });
 
 describe("Noted banner and opener", () => {
+  it("keeps the standalone review route unavailable when new windows are disabled", async () => {
+    const panel = app.navPanels.find((item) => item.id === "review-window")!;
+    const slot = renderSlot(panel, { subPath: "s1" }, {
+      rpc: { getSession: () => ({ ...payload, capabilities: { newWindow: false, markdownEditing: true } }) },
+    });
+    expect(await slot.findByText(/Opening reviews in a new window is disabled/)).toBeTruthy();
+  });
+
   it("shows the review banner in the viewer thread and opens the tab", async () => {
     const banner = app.composerCustomizations.flatMap((c) => c.banners ?? []).find((b) => b.id === "review-requested")!;
     const slot = renderSlot(banner, {}, { rpc: { listSessions: () => ({ sessions: [{ ...session, producerThreadId: "thr_loops", viewThreadId: "t1" }] }) }, composer: { scope: { kind: "thread", threadId: "t1" } } });
