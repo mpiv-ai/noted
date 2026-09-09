@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { createElement, useEffect, type ComponentPropsWithoutRef } from "react";
 
 type RpcInput = Record<string, unknown>;
 
-export function useBbNavigate() {
-  return { experimental_openFileExternally: () => false };
+// The isolated harness cannot reproduce BB's native file context menu.
+export function experimental_FileLink({ target: _target, ...props }: Omit<ComponentPropsWithoutRef<"a">, "target"> & { target: unknown }) {
+  return createElement("a", { ...props, href: "#" });
 }
 
 declare global {
