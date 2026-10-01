@@ -14,4 +14,5 @@ for (const file of ["artifact-sdk.js", "mermaid-node.js", "table-cell.js"]) {
 
 const manifest = JSON.parse(await readFile(path.join(checkout, "package.json"), "utf8"));
 await writeFile("vendor/lavish/VERSION", `v${manifest.version}\n`);
+execFileSync(process.execPath, ["scripts/generate-lavish-sdk.mjs"], { stdio: "inherit" });
 execFileSync("git", ["diff", "--stat", "--", "vendor/lavish"], { stdio: "inherit" });
