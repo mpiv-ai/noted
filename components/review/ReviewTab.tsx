@@ -74,6 +74,7 @@ function ReviewTabForSession({
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [windowBlocked, setWindowBlocked] = useState(false);
+  const [annotating, setAnnotating] = useState(true);
   useEffect(() => {
     if (draft === null) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
@@ -154,45 +155,57 @@ function ReviewTabForSession({
       return;
     }
 
-    const event = bridge.events[handled];
-    if (event?.data.type === "lavish:queuePrompt") {
-      const { data } = event;
-      const item = data.prompt;
-      if (
-        typeof item === "object" &&
-        item !== null &&
-        "selector" in item &&
-        typeof item.selector === "string" &&
-        "tag" in item &&
-        typeof item.tag === "string" &&
-        "text" in item &&
-        typeof item.text === "string" &&
-        "prompt" in item &&
-        typeof item.prompt === "string"
-      ) {
-        const uid =
-          "uid" in item && item.uid !== null && item.uid !== undefined
-            ? String(item.uid)
-            : String(Date.now());
-        const target = "target" in item ? item.target : undefined;
-        void rpc
-          .call("queuePrompt", {
-            sessionId,
-            uid,
-            prompt: item.prompt,
-            selector: item.selector,
-            tag: item.tag,
-            text: item.text,
-            ...(target !== undefined && target !== null ? { target } : {}),
-          })
-          .then((prompt) => {
-            setQueued((current) => [...current, prompt]);
-            bridge.post({ type: "lavish:setAnnotationMode", enabled: true });
-          });
+    for (const event of bridge.events.slice(handled)) {
+      if (event.data.type === "lavish:toggleAnnotationMode") {
+        setAnnotating((current) => !current);
+      }
+      if (event.data.type === "lavish:queuePrompt") {
+        const { data } = event;
+        const item = data.prompt;
+        if (
+          typeof item === "object" &&
+          item !== null &&
+          "selector" in item &&
+          typeof item.selector === "string" &&
+          "tag" in item &&
+          typeof item.tag === "string" &&
+          "text" in item &&
+          typeof item.text === "string" &&
+          "prompt" in item &&
+          typeof item.prompt === "string"
+        ) {
+          const uid =
+            "uid" in item && item.uid !== null && item.uid !== undefined
+              ? String(item.uid)
+              : String(Date.now());
+          const target = "target" in item ? item.target : undefined;
+          void rpc
+            .call("queuePrompt", {
+              sessionId,
+              uid,
+              prompt: item.prompt,
+              selector: item.selector,
+              tag: item.tag,
+              text: item.text,
+              ...(target !== undefined && target !== null ? { target } : {}),
+            })
+            .then((prompt) => {
+              setQueued((current) => [...current, prompt]);
+              bridge.post({ type: "lavish:setAnnotationMode", enabled: true });
+            });
+        }
       }
     }
     setHandled(bridge.events.length);
   }, [bridge.events, handled]);
+
+  // The SDK starts in annotation mode on every load and asks the panel to flip
+  // it (Cmd/Ctrl+I), so the panel owns the state and re-sends it after reloads.
+  const postAnnotationMode = useCallback(() => {
+    bridge.post({ type: "lavish:setAnnotationMode", enabled: annotating });
+  }, [bridge.post, annotating]);
+
+  useEffect(postAnnotationMode, [postAnnotationMode]);
 
   const executeSend = useCallback(
     (input: SendInput) => {
@@ -276,6 +289,11 @@ function ReviewTabForSession({
         ) : <span className="min-w-0 truncate">{loadedPayload.displayPath}</span>}
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span>revision {loadedPayload.revisionNumber}</span>
+          {draft === null ? (
+            <button type="button" aria-pressed={annotating} title="Toggle annotation mode (Ctrl/⌘+I)"
+              className={`rounded-md border px-2 py-1 ${annotating ? "bg-secondary text-secondary-foreground" : ""}`}
+              onClick={() => setAnnotating((current) => !current)}>Annotate</button>
+          ) : null}
           {capabilities.newWindow ? <button type="button" className="rounded-md border px-2 py-1" onClick={() => {
             if (standalone) {
               window.focus();
@@ -335,6 +353,7 @@ function ReviewTabForSession({
         </div>
       ) : <ArtifactFrame
         frameRef={frameRef}
+        onLoad={postAnnotationMode}
         srcdoc={loadedPayload.document.srcdoc}
         title={`Noted: ${loadedPayload.displayPath}`}
       />}
