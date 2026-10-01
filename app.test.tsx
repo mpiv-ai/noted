@@ -79,6 +79,28 @@ describe("Noted review tab", () => {
     await act(async () => {});
     expect(slot.queryByLabelText(/Annotation for/)).toBeNull();
   });
+  it("toggles annotation mode from the artifact hotkey and the header switch", async () => {
+    const action = app.threadPanelActions.find((a) => a.id === "review")!;
+    const slot = renderSlot(action, { threadId: "t1", params: { sessionId: "s1" } }, { rpc: { getSession: () => payload }, context: { threadId: "t1", projectId: null } });
+    const frame = (await slot.findByTitle("Noted: plan.html")) as HTMLIFrameElement;
+    await act(async () => {});
+    const posted = vi.spyOn(frame.contentWindow!, "postMessage");
+    const modes = () => posted.mock.calls.map(([message]) => (message as { enabled: boolean }).enabled);
+    const toggle = slot.getByRole("button", { name: "Annotate" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+
+    act(() => { window.dispatchEvent(new MessageEvent("message", { data: { type: "lavish:toggleAnnotationMode", artifact_load_token: "r1" }, source: frame.contentWindow })); });
+    await waitFor(() => expect(toggle.getAttribute("aria-pressed")).toBe("false"));
+    expect(modes().at(-1)).toBe(false);
+
+    fireEvent.load(frame);
+    expect(modes().at(-1)).toBe(false);
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle.getAttribute("aria-pressed")).toBe("true"));
+    expect(modes().at(-1)).toBe(true);
+    expect(posted.mock.calls.every(([message]) => (message as { type: string }).type === "lavish:setAnnotationMode")).toBe(true);
+  });
   it("queues an annotation from an iframe message and sends it", async () => {
     const calls: string[] = [];
     const action = app.threadPanelActions.find((a) => a.id === "review")!;
