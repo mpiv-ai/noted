@@ -414,7 +414,7 @@ try {
   });
 
   await step("cross-delivered", async () => {
-    const marker = `Reviewed in thread ${viewerId} by Michael.`;
+    const marker = `Reviewed in thread ${viewerId}.`;
     const producerLog = await waitForNewAssistant(
       producerId,
       crossAssistantCount,

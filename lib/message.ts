@@ -44,7 +44,7 @@ export function buildFeedbackMessage(input: FeedbackMessageInput): string {
   ];
 
   if (input.reviewedInThreadId !== null) {
-    lines.push(`Reviewed in thread ${input.reviewedInThreadId} by Michael.`, "");
+    lines.push(`Reviewed in thread ${input.reviewedInThreadId}.`, "");
   }
 
   lines.push(...input.items.map((item, index) => itemLine(item, index + 1)));

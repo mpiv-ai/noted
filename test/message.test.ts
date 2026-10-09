@@ -23,7 +23,7 @@ describe("buildFeedbackMessage", () => {
   });
   it("adds the review location and the end-session line", () => {
     const msg = buildFeedbackMessage({ displayPath: "packet.html", revisionNumber: 1, items: [], freeform: "ship it", endSession: true, reviewedInThreadId: "thr_v", replyThreadId: "thr_p" });
-    expect(msg).toContain("Reviewed in thread thr_v by Michael.");
+    expect(msg).toContain("Reviewed in thread thr_v.");
     expect(msg).toContain("The reviewer ended the session. Do not reopen it.");
     expect(msg.split("\n")[0]).toBe("Noted: feedback on packet.html (revision 1, 1 items)");
   });
