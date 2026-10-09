@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-The current 0.1.x release line receives security updates.
+The current 0.2.x release line receives security updates.
 
 ## Report a vulnerability
 

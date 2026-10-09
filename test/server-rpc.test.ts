@@ -66,7 +66,7 @@ describe("noted rpc", () => {
     expect(sent[0].threadId).toBe("thr_loops"); expect(sent[0].mode).toBe("queue-if-active");
     expect(sent[0].input[0]).toMatchObject({ type: "text", mentions: [] });
     expect(sent[0].input[0].text.startsWith("Noted: feedback on packet.html (revision 1, 1 items)")).toBe(true);
-    expect(sent[0].input[0].text).toContain("Reviewed in thread thr_michael by Michael.");
+    expect(sent[0].input[0].text).toContain("Reviewed in thread thr_michael.");
     expect(s.batch.delivery).toBe("queued");
     const g: any = await harness.behavior.callRpc("getSession", { sessionId: o.session.id }); expect(g.queued).toEqual([]);
   });

@@ -6,12 +6,14 @@ Noted is built on [Lavish](https://github.com/kunchenguid/lavish-axi) by Kun Che
 
 ## Status
 
-v0.1 supports:
+v0.2 supports:
 
 - HTML and rendered Markdown review in the bb side panel.
-- Element and text-range annotations.
+- Element and text-range annotations, with annotation mode toggled by
+  Cmd/Ctrl+I or the **Annotate** switch.
 - Queue and steer feedback delivery.
 - Revision capture after agent turns.
+- Optional review windows and Markdown source editing.
 - The `bb noted` CLI, including knowledge-base export.
 
 The review loop works in the macOS bb app when it connects to a remote server and in a browser through bb Connect.
@@ -23,7 +25,7 @@ The review loop works in the macOS bb app when it connects to a remote server an
 ## Install
 
 ```sh
-bb plugin install git:github.com/mpiv-ai/noted@^0.1.1
+bb plugin install git:github.com/mpiv-ai/noted@^0.2.0
 ```
 
 To install from a checkout:
@@ -119,7 +121,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution requirements.
 
 ## Roadmap
 
-Whiteboard review is planned for v0.2.
+Whiteboard review is planned for a future release.
 
 ## License
 
