@@ -57,6 +57,7 @@ export const MIGRATIONS: string[] = [
     text TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );`,
+  "ALTER TABLE sessions ADD COLUMN banner_dismissed_at INTEGER;",
 ];
 
 export type SourceKind = "workspace" | "thread-storage" | "host";
@@ -74,6 +75,7 @@ export type Session = {
   status: "open" | "ended";
   endedBy: "user" | "agent" | null;
   deliveryMode: DeliveryMode;
+  bannerDismissedAt: number | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -135,6 +137,7 @@ export type Store = {
   endSession(id: string, by: "user" | "agent"): void;
   setDeliveryMode(id: string, mode: DeliveryMode): void;
   updateRoles(id: string, roles: { viewThreadId: string; replyThreadId: string }): void;
+  setBannerDismissed(id: string, dismissed: boolean): void;
   addRevision(sessionId: string, sha256: string, sizeBytes: number, trigger: Revision["trigger"]): Revision;
   latestRevision(sessionId: string): Revision | null;
   listRevisions(sessionId: string): Revision[];
@@ -178,6 +181,7 @@ type SessionRow = {
   status: Session["status"];
   ended_by: Session["endedBy"];
   delivery_mode: DeliveryMode;
+  banner_dismissed_at: number | null;
   created_at: number;
   updated_at: number;
 };
@@ -236,6 +240,7 @@ function mapSession(row: SessionRow): Session {
     status: row.status,
     endedBy: row.ended_by,
     deliveryMode: row.delivery_mode,
+    bannerDismissedAt: row.banner_dismissed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -329,6 +334,9 @@ export function openStore(
   const updateRoles = db.prepare<[string, string, number, string]>(
     "UPDATE sessions SET view_thread_id = ?, reply_thread_id = ?, updated_at = ? WHERE id = ?",
   );
+  const setBannerDismissed = db.prepare<[number | null, number, string]>(
+    "UPDATE sessions SET banner_dismissed_at = ?, updated_at = ? WHERE id = ?",
+  );
 
   const insertRevision = db.prepare<[string, string, string, number, number, Revision["trigger"]]>(
     `INSERT INTO revisions (id, session_id, sha256, size_bytes, recorded_at, trigger)
@@ -395,6 +403,7 @@ export function openStore(
         status: "open",
         endedBy: null,
         deliveryMode: "default",
+        bannerDismissedAt: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -441,6 +450,10 @@ export function openStore(
     },
     updateRoles(id, roles) {
       updateRoles.run(roles.viewThreadId, roles.replyThreadId, Date.now(), id);
+    },
+    setBannerDismissed(id, dismissed) {
+      const now = Date.now();
+      setBannerDismissed.run(dismissed ? now : null, now, id);
     },
     addRevision(sessionId, sha256, sizeBytes, trigger) {
       const revision: Revision = {

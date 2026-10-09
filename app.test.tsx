@@ -6,7 +6,7 @@ import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 const app = await loadPluginApp(() => import("./app"));
 afterEach(cleanup);
 
-const session = { id: "s1", producerThreadId: "t1", viewThreadId: "t1", replyThreadId: "t1", projectId: null, hostId: null, absolutePath: "/repo/plan.html", sourceKind: "workspace", status: "open", endedBy: null, deliveryMode: "default", createdAt: 0, updatedAt: 0 };
+const session = { id: "s1", producerThreadId: "t1", viewThreadId: "t1", replyThreadId: "t1", projectId: null, hostId: null, absolutePath: "/repo/plan.html", sourceKind: "workspace", status: "open", endedBy: null, deliveryMode: "default", bannerDismissedAt: null, createdAt: 0, updatedAt: 0 };
 const sha = "a".repeat(64);
 const revision = { id: "r1", sessionId: "s1", sha256: sha, sizeBytes: 1, recordedAt: 0, trigger: "open" };
 const payload = { session, revision, revisionNumber: 1, displayPath: "plan.html", capabilities: { newWindow: true, markdownEditing: true }, markdown: null, document: { srcdoc: "<html><body><p id='a'>Hi</p></body></html>", inlined: [], linked: [], skipped: [] }, queued: [], batches: [], replies: [] };
@@ -270,10 +270,24 @@ describe("Noted banner and opener", () => {
 
   it("shows the review banner in the viewer thread and opens the tab", async () => {
     const banner = app.composerCustomizations.flatMap((c) => c.banners ?? []).find((b) => b.id === "review-requested")!;
-    const slot = renderSlot(banner, {}, { rpc: { listSessions: () => ({ sessions: [{ ...session, producerThreadId: "thr_loops", viewThreadId: "t1" }] }) }, composer: { scope: { kind: "thread", threadId: "t1" } } });
+    const slot = renderSlot(banner, {}, { rpc: { listSessions: () => ({ sessions: [{ ...session, producerThreadId: "thr_loops", viewThreadId: "t1" }] }), dismissBanner: () => ({ ok: true }) }, composer: { scope: { kind: "thread", threadId: "t1" } } });
     await slot.findByText(/Review requested: plan.html from thr_loops/);
     fireEvent.click(slot.getByRole("button", { name: "Open" }));
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "openThreadPanel", options: expect.objectContaining({ actionId: "review", params: { sessionId: "s1" } }) });
+  });
+  it.each(["Open", "Dismiss"])("hides the review banner after one %s press and records the dismissal", async (name) => {
+    const banner = app.composerCustomizations.flatMap((c) => c.banners ?? []).find((b) => b.id === "review-requested")!;
+    const slot = renderSlot(banner, {}, { rpc: { listSessions: () => ({ sessions: [{ ...session, producerThreadId: "thr_loops", viewThreadId: "t1" }] }), dismissBanner: () => ({ ok: true }) }, composer: { scope: { kind: "thread", threadId: "t1" } } });
+    await slot.findByText(/Review requested: plan.html/);
+    fireEvent.click(slot.getByRole("button", { name }));
+    expect(slot.queryByText(/Review requested: plan.html/)).toBeNull();
+    expect(slot.inspection.rpcCalls).toContainEqual({ method: "dismissBanner", input: { sessionId: "s1" } });
+  });
+  it("keeps a dismissed review banner hidden", async () => {
+    const banner = app.composerCustomizations.flatMap((c) => c.banners ?? []).find((b) => b.id === "review-requested")!;
+    const slot = renderSlot(banner, {}, { rpc: { listSessions: () => ({ sessions: [{ ...session, producerThreadId: "thr_loops", viewThreadId: "t1", bannerDismissedAt: 1 }] }) }, composer: { scope: { kind: "thread", threadId: "t1" } } });
+    await waitFor(() => expect(slot.inspection.rpcCalls.some((c) => c.method === "listSessions")).toBe(true));
+    expect(slot.queryByText(/Review requested/)).toBeNull();
   });
   it("file opener shows bb's preview with a Review with Noted button", async () => {
     const opener = app.fileOpeners.find((o) => o.id === "html")!;

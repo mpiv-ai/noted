@@ -17,7 +17,7 @@ type Runtime = {
   capabilities: { newWindow: boolean; markdownEditing: boolean };
 };
 
-type ChangeReason = "revision" | "queue" | "batch" | "reply" | "ended" | "roles";
+type ChangeReason = "revision" | "queue" | "batch" | "reply" | "ended" | "roles" | "banner";
 
 const MIME_TYPES: Record<string, string> = {
   ".css": "text/css",
@@ -374,6 +374,10 @@ async function runNotedCli(
         ...(parsed.replyTo === undefined ? {} : { replyTo: parsed.replyTo }),
         ...(parsed.reopen ? { reopen: true } : {}),
       });
+      if (payload.session.bannerDismissedAt !== null) {
+        runtime.store.setBannerDismissed(payload.session.id, false);
+        publish(runtime, payload.session.id, payload.revision.id, "banner");
+      }
       const result = {
         session_id: payload.session.id,
         path: payload.displayPath,
@@ -655,6 +659,13 @@ export default async function plugin(bb: BbPluginApi) {
       const revision = requireRevision(store, sessionId);
       store.endSession(sessionId, by);
       publish(runtime, sessionId, revision.id, "ended");
+      return { ok: true };
+    },
+    dismissBanner({ sessionId }) {
+      requireSession(store, sessionId);
+      const revision = requireRevision(store, sessionId);
+      store.setBannerDismissed(sessionId, true);
+      publish(runtime, sessionId, revision.id, "banner");
       return { ok: true };
     },
     setDeliveryMode({ sessionId, mode }) {

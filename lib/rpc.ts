@@ -13,6 +13,7 @@ const sessionSchema = z.object({
   status: z.enum(["open", "ended"]),
   endedBy: z.enum(["user", "agent"]).nullable(),
   deliveryMode: z.enum(["default", "queue", "steer"]),
+  bannerDismissedAt: z.number().nullable(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -129,6 +130,10 @@ export const rpcContract = defineRpcContract({
   },
   endSession: {
     input: z.object({ sessionId: z.string(), by: z.enum(["user", "agent"]) }).strict(),
+    output: okSchema,
+  },
+  dismissBanner: {
+    input: z.object({ sessionId: z.string() }).strict(),
     output: okSchema,
   },
   setDeliveryMode: {
