@@ -20,7 +20,9 @@ function ThreadReviewBanner({ threadId }: { threadId: string }) {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  // Hides a card the moment it is pressed, before the server confirms. Keyed by
+  // updatedAt so an agent reopening the review shows the card again.
+  const [pressed, setPressed] = useState<Set<string>>(() => new Set());
 
   const loadSessions = useCallback(() => {
     void rpc.call("listSessions", { threadId }).then(({ sessions: nextSessions }) => {
@@ -31,12 +33,18 @@ function ThreadReviewBanner({ threadId }: { threadId: string }) {
   useEffect(loadSessions, [loadSessions]);
   useRealtime("noted:session-changed", loadSessions);
 
+  const dismiss = (session: Session) => {
+    setPressed((current) => new Set(current).add(`${session.id}:${session.updatedAt}`));
+    void rpc.call("dismissBanner", { sessionId: session.id });
+  };
+
   const visible = sessions.filter(
     (session) =>
       session.status === "open" &&
       session.viewThreadId === threadId &&
       session.producerThreadId !== threadId &&
-      !dismissed.has(session.id),
+      session.bannerDismissedAt === null &&
+      !pressed.has(`${session.id}:${session.updatedAt}`),
   );
 
   if (visible.length === 0) {
@@ -54,6 +62,7 @@ function ThreadReviewBanner({ threadId }: { threadId: string }) {
           <button
             type="button"
             onClick={() => {
+              dismiss(session);
               void navigate.openThreadPanel({
                 actionId: "review",
                 params: { sessionId: session.id },
@@ -65,9 +74,7 @@ function ThreadReviewBanner({ threadId }: { threadId: string }) {
           </button>
           <button
             type="button"
-            onClick={() => {
-              setDismissed((current) => new Set(current).add(session.id));
-            }}
+            onClick={() => dismiss(session)}
             className="rounded-md border px-2 py-1"
           >
             Dismiss
