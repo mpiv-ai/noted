@@ -573,9 +573,9 @@ export default async function plugin(bb: BbPluginApi) {
   });
   bb.cli.register({
     name: "noted",
-    summary: "Review HTML and Markdown artifacts with the user in the side panel (built on Lavish)",
+    summary: "Review HTML, Markdown, and diff artifacts with the user in the side panel (built on Lavish)",
     commands: [
-      { name: "open", summary: "Open an HTML or Markdown artifact for review", usage: CLI_USAGES.open },
+      { name: "open", summary: "Open an HTML, Markdown, or diff artifact for review", usage: CLI_USAGES.open },
       { name: "reply", summary: "Add a note to the current review", usage: CLI_USAGES.reply },
       { name: "status", summary: "List open review sessions", usage: CLI_USAGES.status },
       { name: "end", summary: "End an open review session", usage: CLI_USAGES.end },

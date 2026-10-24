@@ -2,6 +2,7 @@ import { extname, posix } from "node:path";
 import GithubSlugger from "github-slugger";
 import { marked } from "marked";
 import sanitizeHtml from "sanitize-html";
+import { diffDocumentHtml, isDiffPath } from "./diff";
 
 const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown"]);
 
@@ -135,6 +136,9 @@ export function sourceDocumentHtml(
   source: string,
   options: SourceDocumentOptions = {},
 ): string {
+  if (isDiffPath(path)) {
+    return diffDocumentHtml(path, source);
+  }
   if (!isMarkdownPath(path)) {
     return source;
   }

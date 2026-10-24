@@ -31,4 +31,26 @@ describe("buildFeedbackMessage", () => {
     const msg = buildFeedbackMessage({ displayPath: "a.html", revisionNumber: 1, items: [item({ prompt: "p", selector: "#x", tag: "p", text: "y".repeat(300) })], freeform: null, endSession: false, reviewedInThreadId: null, replyThreadId: "t" });
     expect(msg).toContain('"' + "y".repeat(120) + '…"');
   });
+  it("names the file, side, and line for diff targets", () => {
+    const msg = buildFeedbackMessage({
+      displayPath: "review/change.patch", revisionNumber: 2, freeform: null, endSession: false, reviewedInThreadId: null, replyThreadId: "t",
+      items: [
+        item({ prompt: "Rename.", selector: "tr#nd-0-7372632f6170702e7473-R14 > td:nth-of-type(3)", tag: "td", text: "const total = 1;" }),
+        item({ prompt: "Why remove?", selector: "tr#nd-0-7372632f6170702e7473-L12 > td:nth-of-type(1)", tag: "td", text: "" }),
+        item({ prompt: "Tighten.", selector: "tr#nd-0-7372632f6170702e7473-L18R20 > td:nth-of-type(3)", tag: "text", text: "return total", target: { type: "text-range" } }),
+        item({ prompt: "Split this file.", selector: "section#nd-1-6c69622e7473 > h2 > code", tag: "code", text: "lib.ts" }),
+        item({ prompt: "Plain element.", selector: "#intro", tag: "p", text: "Intro" }),
+      ],
+    });
+    expect(msg).toContain('1. diff `src/app.ts` line 14, new side (added) — "const total = 1;" → Rename.');
+    expect(msg).toContain("2. diff `src/app.ts` line 12, old side (removed) → Why remove?");
+    expect(msg).toContain('3. text in diff `src/app.ts` line 20, new side (context; old line 18): "return total" → Tighten.');
+    expect(msg).toContain('4. diff `lib.ts` (file) — "lib.ts" → Split this file.');
+    expect(msg).toContain('5. p `#intro` — "Intro" → Plain element.');
+    expect(msg.trimEnd().endsWith("Apply the changes to the named source files, then regenerate review/change.patch so the review refreshes. Reply in chat or with `bb noted reply <text>`; the reviewer is watching the panel.")).toBe(true);
+  });
+  it("does not read diff ids from non-diff artifacts", () => {
+    const msg = buildFeedbackMessage({ displayPath: "page.html", revisionNumber: 1, items: [item({ prompt: "p", selector: "tr#nd-0-61-R2", tag: "tr", text: "x" })], freeform: null, endSession: false, reviewedInThreadId: null, replyThreadId: "t" });
+    expect(msg).toContain('1. tr `tr#nd-0-61-R2` — "x" → p');
+  });
 });

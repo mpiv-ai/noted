@@ -291,7 +291,7 @@ describe("Noted banner and opener", () => {
   });
   it("file opener shows bb's preview with a Review with Noted button", async () => {
     const opener = app.fileOpeners.find((o) => o.id === "html")!;
-    expect([...opener.extensions]).toEqual(["html", "htm", "md", "markdown"]);
+    expect([...opener.extensions]).toEqual(["html", "htm", "md", "markdown", "diff", "patch"]);
     const Original = () => <div>original preview</div>;
     const slot = renderSlot(opener, { path: "plan.html", source: { kind: "workspace", threadId: "t1", environmentId: "e1", projectId: "p1" }, Original }, { rpc: { listSessions: () => ({ sessions: [] }), openSession: () => payload }, context: { threadId: "t1", projectId: "p1" } });
     await slot.findByText("original preview");

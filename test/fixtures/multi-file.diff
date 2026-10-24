@@ -1,0 +1,45 @@
+diff --git a/a.txt b/a.txt
+index 2019eda..4e81a66 100644
+--- a/a.txt
++++ b/a.txt
+@@ -1,7 +1,8 @@
+ one
+-two
++TWO
+ three
+ four
+ five
+ six
+ seven
++eight
+\ No newline at end of file
+diff --git a/added.html b/added.html
+new file mode 100644
+index 0000000..5fb1872
+--- /dev/null
++++ b/added.html
+@@ -0,0 +1 @@
++<script>alert(1)</script>
+diff --git a/deleted.txt b/deleted.txt
+deleted file mode 100644
+index 286c5f5..0000000
+--- a/deleted.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-gone
+diff --git a/img.bin b/img.bin
+index 8352675..cfaefd9 100644
+Binary files a/img.bin and b/img.bin differ
+diff --git a/old-name.txt b/new name.txt
+similarity index 58%
+rename from old-name.txt
+rename to new name.txt
+index 7853fa3..2e3fe77 100644
+--- a/old-name.txt
++++ b/new name.txt	
+@@ -1,4 +1,4 @@
+ keep me
+ line2
+ line3
+-line4
++line4 changed

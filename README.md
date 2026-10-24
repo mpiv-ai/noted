@@ -1,6 +1,6 @@
 # Noted
 
-Noted is a [bb](https://getbb.app) plugin for reviewing HTML and Markdown artifacts inside the thread side panel. Select an element or a text range, queue feedback, and send the batch to a bb thread.
+Noted is a [bb](https://getbb.app) plugin for reviewing HTML, Markdown, and code diff artifacts inside the thread side panel. Select an element or a text range, queue feedback, and send the batch to a bb thread.
 
 Noted is built on [Lavish](https://github.com/kunchenguid/lavish-axi) by Kun Chen. It vendors Lavish's in-artifact annotation SDK unchanged and connects the review loop to bb threads.
 
@@ -9,6 +9,7 @@ Noted is built on [Lavish](https://github.com/kunchenguid/lavish-axi) by Kun Che
 v0.2 supports:
 
 - HTML and rendered Markdown review in the bb side panel.
+- Line-level review of unified diffs and patches.
 - Element and text-range annotations, with annotation mode toggled by
   Cmd/Ctrl+I or the **Annotate** switch.
 - Queue and steer feedback delivery.
@@ -44,6 +45,7 @@ Run these commands from an agent thread:
 ```sh
 bb noted open plan.html
 bb noted open notes.md
+git diff > "$BB_THREAD_STORAGE/review.diff" && bb noted open "$BB_THREAD_STORAGE/review.diff"
 bb noted open packet.html --view parent
 bb noted reply "Applied the three changes."
 bb noted status
@@ -52,10 +54,25 @@ bb noted file plan.html --to <vault-folder> --title "Plan A" --summary "..."
 
 Feedback arrives in the selected thread as a message that starts with `Noted: feedback on ...`.
 
-Noted registers as a file opener for `.html`, `.htm`, `.md`, and `.markdown`.
+Noted registers as a file opener for `.html`, `.htm`, `.md`, `.markdown`,
+`.diff`, and `.patch`.
 Opening one of those files normally keeps BB's rendered preview visible with a
 **Review with Noted** button above it. As with every BB file opener, a user can
 pin BB Preview or another installed opener for an extension in Settings.
+
+## Diff review
+
+Noted renders a `.diff` or `.patch` file as a GitHub-style review: one section
+per file with its status (added, deleted, renamed, copied, modified), old and
+new line numbers, and a notice for binary files. It reads `git diff`,
+`git format-patch`, and plain `diff -u` output, and shows a patch's commit
+message above its files. Diff content is escaped, never rendered as HTML.
+
+Click a line, hunk header, or file header, or select text within a line. Each
+feedback item names the file path, the side, and the line, for example
+``diff `src/app.ts` line 14, new side (added)``, so the agent edits the source
+file rather than the diff. When the agent regenerates the diff, Noted records
+a new revision and refreshes the review.
 
 ## Review windows and Markdown editing
 
