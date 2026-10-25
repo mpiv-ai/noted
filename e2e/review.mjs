@@ -151,6 +151,7 @@ async function spawnThread(role) {
     "bb",
     "thread",
     "spawn",
+    "--parent-self",
     "--project",
     projectId,
     "--environment",
