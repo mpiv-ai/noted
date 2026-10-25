@@ -14,6 +14,10 @@ const screenshotPath = join(scratch, "noted-isolated-popout.png");
 const videoDir = join(scratch, "video");
 const mp4Path = join(scratch, "noted-isolated-popout.mp4");
 const contactSheetPath = join(scratch, "noted-isolated-popout-contact-sheet.png");
+const diffFixturePath = join(scratch, "diff-fixture.mjs");
+const diffScreenshotPath = join(scratch, "noted-isolated-diff.png");
+const diffSentScreenshotPath = join(scratch, "noted-isolated-diff-sent.png");
+const diffDocumentScreenshotPath = join(scratch, "noted-isolated-diff-document.png");
 const ffmpeg = process.env.FFMPEG ?? "ffmpeg";
 
 rmSync(scratch, { recursive: true, force: true });
@@ -35,6 +39,22 @@ await build({
   }],
 });
 
+await build({
+  absWorkingDir: root,
+  entryPoints: ["e2e/isolated-diff-fixture.ts"],
+  bundle: true,
+  format: "esm",
+  platform: "node",
+  packages: "external",
+  outfile: diffFixturePath,
+});
+const { diffReviewDocument, buildFeedbackMessage } = await import(diffFixturePath);
+const diffSource = readFileSync(join(root, "test/fixtures/multi-file.diff"), "utf8");
+const diffSha256 = digest(diffSource);
+const diffDocument = await diffReviewDocument("/repo/review/change.diff", diffSource, "diff-session", `revision-${diffSha256.slice(0, 8)}`);
+const diffQueue = [];
+const diffBatches = [];
+
 const markdown = { content: "# Original plan\n\nA reviewable Markdown document.\n", sha256: "" };
 markdown.sha256 = digest(markdown.content);
 
@@ -52,7 +72,25 @@ function markdownDocument(source) {
   return `<html><body><main><h1>${escape(heading)}</h1><p>${escape(paragraph)}</p></main></body></html>`;
 }
 
+function diffPayload() {
+  return {
+    session: {
+      id: "diff-session", producerThreadId: "thread-a", viewThreadId: "thread-a", replyThreadId: "thread-a",
+      projectId: "project-a", hostId: "host-a", absolutePath: "/repo/review/change.diff",
+      sourceKind: "workspace", status: "open", endedBy: null, deliveryMode: "default", createdAt: 1, updatedAt: 1,
+    },
+    revision: { id: `revision-${diffSha256.slice(0, 8)}`, sessionId: "diff-session", sha256: diffSha256, sizeBytes: Buffer.byteLength(diffSource), recordedAt: 1, trigger: "open" },
+    revisionNumber: 1,
+    displayPath: "review/change.diff",
+    capabilities: { newWindow: true, markdownEditing: true },
+    markdown: null,
+    document: diffDocument,
+    queued: [...diffQueue], batches: [...diffBatches], replies: [],
+  };
+}
+
 function payload(sessionId) {
+  if (sessionId === "diff-session") return diffPayload();
   const isHtml = sessionId === "html-session";
   const source = isHtml ? "<h1>HTML review</h1><p>This format is read-only.</p>" : markdown.content;
   const sha256 = isHtml ? digest(source) : markdown.sha256;
@@ -85,6 +123,18 @@ const server = createServer(async (request, response) => {
         markdown.content = input.content;
         markdown.sha256 = digest(markdown.content);
         return json(response, 200, { value: { sha256: markdown.sha256 } });
+      }
+      if (method === "queuePrompt" && input.sessionId === "diff-session") {
+        const prompt = { id: `prompt-${diffQueue.length + 1}`, sessionId: input.sessionId, revisionId: diffPayload().revision.id, createdAt: Date.now(), uid: input.uid, prompt: input.prompt, selector: input.selector, tag: input.tag, text: input.text, target: input.target ?? null };
+        diffQueue.push(prompt);
+        return json(response, 200, { value: prompt });
+      }
+      if (method === "send" && input.sessionId === "diff-session") {
+        const items = diffQueue.splice(0);
+        const messageText = buildFeedbackMessage({ displayPath: "review/change.diff", revisionNumber: 1, items, freeform: input.freeform ?? null, endSession: input.endSession, reviewedInThreadId: null, replyThreadId: "thread-a" });
+        const batch = { id: `batch-${diffBatches.length + 1}`, sessionId: input.sessionId, revisionId: diffPayload().revision.id, items, messageText, mode: input.mode ?? "queue-if-active", delivery: "sent", error: null, sentAt: Date.now() };
+        diffBatches.push(batch);
+        return json(response, 200, { value: { batch } });
       }
       if (method === "setDeliveryMode" || method === "updatePrompt" || method === "removePrompt") return json(response, 200, { value: { ok: true } });
       throw new Error(`Unsupported isolated RPC method: ${method}`);
@@ -153,6 +203,48 @@ try {
     screenshot: screenshotPath,
   }));
   await htmlPage.close();
+
+  const diffPage = await context.newPage();
+  await diffPage.goto(`${baseUrl}/diff`);
+  const diffFrame = diffPage.frameLocator('iframe[title="Noted: review/change.diff"]');
+  await diffFrame.getByRole("heading", { name: "change.diff" }).waitFor();
+  const annotations = [
+    ['tr[data-kind="add"][data-new-line="2"] td.nd-code', "Keep the original casing here."],
+    ['section[data-path="deleted.txt"] tr[data-kind="delete"] td.nd-code', "Why delete this file?"],
+    ['section[data-path="new name.txt"] tr[data-kind="context"][data-new-line="3"] td.nd-code', "Add a test for this rename."],
+  ];
+  for (const [selector, feedback] of annotations) {
+    await diffFrame.locator(selector).click();
+    const textarea = diffFrame.locator(".lavish-annotation-card textarea");
+    await textarea.waitFor({ timeout: 20_000 });
+    await textarea.fill(feedback);
+    await diffFrame.locator(".lavish-annotation-card .lavish-send").click();
+    await diffPage.getByText(feedback, { exact: true }).waitFor({ timeout: 10_000 });
+  }
+  await diffFrame.locator('tr[data-kind="add"][data-new-line="2"] td.nd-code').hover();
+  await diffPage.waitForTimeout(250);
+  await diffPage.screenshot({ path: diffScreenshotPath });
+  await diffPage.getByRole("button", { name: "Send to agent", exact: true }).click();
+  await diffPage.getByText("Noted: feedback on review/change.diff", { exact: false }).waitFor({ timeout: 10_000 });
+  const diffMessage = diffBatches.at(-1)?.messageText ?? "";
+  for (const expected of [
+    "diff `a.txt` line 2, new side (added)",
+    "diff `deleted.txt` line 1, old side (removed)",
+    "diff `new name.txt` line 3, new side (context; old line 3)",
+  ]) {
+    if (!diffMessage.includes(expected)) throw new Error(`Diff feedback is missing ${expected}:\n${diffMessage}`);
+  }
+  await diffPage.screenshot({ path: diffSentScreenshotPath });
+  console.log(JSON.stringify({ diffReview: "real Lavish SDK queued three diff-line notes", diffScreenshot: diffScreenshotPath, diffSentScreenshot: diffSentScreenshotPath, diffMessage }));
+  await diffPage.close();
+
+  const documentPage = await context.newPage();
+  await documentPage.setViewportSize({ width: 960, height: 720 });
+  await documentPage.setContent(diffDocument.srcdoc);
+  await documentPage.getByRole("heading", { name: "change.diff" }).waitFor();
+  await documentPage.screenshot({ path: diffDocumentScreenshotPath, fullPage: true });
+  console.log(JSON.stringify({ diffDocumentScreenshot: diffDocumentScreenshotPath }));
+  await documentPage.close();
   await popup.close();
   await page.close();
 } finally {

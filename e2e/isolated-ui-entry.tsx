@@ -27,7 +27,7 @@ function Shell() {
     <main>
       <header>Isolated Noted UI harness</header>
       <p className="harness-note">Uses the real ReviewTab component with a local persisted-session RPC fixture.</p>
-      <ReviewTab threadId="" params={{ sessionId: location.pathname.includes("/html") ? "html-session" : "markdown-session" }} />
+      <ReviewTab threadId="" params={{ sessionId: location.pathname.includes("/html") ? "html-session" : location.pathname.includes("/diff") ? "diff-session" : "markdown-session" }} />
     </main>
   );
 }

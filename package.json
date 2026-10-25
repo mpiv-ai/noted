@@ -9,7 +9,7 @@
   },
   "bb": {
     "name": "Noted",
-    "description": "Review and annotate HTML and Markdown artifacts in the side panel, then send feedback to the thread. Built on Lavish.",
+    "description": "Review and annotate HTML, Markdown, and diff artifacts in the side panel, then send feedback to the thread. Built on Lavish.",
     "branding": {
       "icon": "./assets/icon.svg"
     },
@@ -63,7 +63,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
-  "description": "Review and annotate HTML and Markdown artifacts inside bb, then send feedback to the thread. Built on Lavish.",
+  "description": "Review and annotate HTML, Markdown, and diff artifacts inside bb, then send feedback to the thread. Built on Lavish.",
   "license": "MIT",
   "keywords": [
     "bb",

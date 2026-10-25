@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Review `.diff` and `.patch` files. Noted renders unified diffs from
+  `git diff`, `git format-patch`, and `diff -u` with one annotatable element
+  per line, and feedback names the file path, side, and line number.
+
 ## 0.2.0 - 2026-10-09
 
 - Open a review in a separate browser window, and edit Markdown source from

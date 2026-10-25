@@ -10,7 +10,10 @@ The `open-cross-thread` step re-opens the live session with `view: viewer` and r
 Run `npm run build` then `node e2e/isolated-ui-evidence.mjs` to exercise the
 actual review component without replacing a live BB plugin. This check uses a
 local session fixture for RPC and realtime delivery. It covers browser popup,
-Markdown source editing and saving, both-view refresh, and HTML read-only mode.
+Markdown source editing and saving, both-view refresh, HTML read-only mode, and
+diff review: it renders `test/fixtures/multi-file.diff` through the server's
+source pipeline, annotates three diff lines with the real Lavish SDK, and checks
+that the sent feedback names each file path, side, and line.
 It writes screenshots and a clip under the ignored `.noted-e2e/isolated-ui/`
 directory and shuts down its temporary server. It does not certify production
 BB routing, authentication, file writes, or Electron window behavior.

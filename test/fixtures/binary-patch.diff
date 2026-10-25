@@ -1,0 +1,26 @@
+diff --git a/img.bin b/img.bin
+index 8352675d67aed6625ece79af41c27fdb4ee2e867..cfaefd9b590a22093b500b6b748dbd8306b97720 100644
+GIT binary patch
+literal 4
+LcmZSJWMTyX04M+v
+
+literal 3
+KcmZQzWC8#H2LJ>B
+
+diff --git a/script.sh b/script.sh
+old mode 100644
+new mode 100755
+diff --git a/src/a.ts b/src/b.ts
+similarity index 100%
+copy from src/a.ts
+copy to src/b.ts
+diff --git a/docs/my file.md b/docs/my file.md
+old mode 100644
+new mode 100755
+diff --git x/one.txt x/one.txt
+index 5626abf..814f4a4 100644
+--- x/one.txt
++++ x/one.txt
+@@ -1 +1,2 @@
+ one
++two

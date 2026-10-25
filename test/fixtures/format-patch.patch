@@ -1,0 +1,71 @@
+From 5f9095ca0e235fa1be2dc1fa6ea421b03c051a1e Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Sat, 24 Oct 2026 18:28:12 +0000
+Subject: [PATCH] Second change
+
+Body line
+---
+ a.txt                        |   3 ++-
+ added.html                   |   1 +
+ deleted.txt                  |   1 -
+ img.bin                      | Bin 3 -> 4 bytes
+ old-name.txt => new name.txt |   2 +-
+ 5 files changed, 4 insertions(+), 3 deletions(-)
+ create mode 100644 added.html
+ delete mode 100644 deleted.txt
+ rename old-name.txt => new name.txt (58%)
+
+diff --git a/a.txt b/a.txt
+index 2019eda..4e81a66 100644
+--- a/a.txt
++++ b/a.txt
+@@ -1,7 +1,8 @@
+ one
+-two
++TWO
+ three
+ four
+ five
+ six
+ seven
++eight
+\ No newline at end of file
+diff --git a/added.html b/added.html
+new file mode 100644
+index 0000000..5fb1872
+--- /dev/null
++++ b/added.html
+@@ -0,0 +1 @@
++<script>alert(1)</script>
+diff --git a/deleted.txt b/deleted.txt
+deleted file mode 100644
+index 286c5f5..0000000
+--- a/deleted.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-gone
+diff --git a/img.bin b/img.bin
+index 8352675d67aed6625ece79af41c27fdb4ee2e867..cfaefd9b590a22093b500b6b748dbd8306b97720 100644
+GIT binary patch
+literal 4
+LcmZSJWMTyX04M+v
+
+literal 3
+KcmZQzWC8#H2LJ>B
+
+diff --git a/old-name.txt b/new name.txt
+similarity index 58%
+rename from old-name.txt
+rename to new name.txt
+index 7853fa3..2e3fe77 100644
+--- a/old-name.txt
++++ b/new name.txt	
+@@ -1,4 +1,4 @@
+ keep me
+ line2
+ line3
+-line4
++line4 changed
+-- 
+2.43.0
+

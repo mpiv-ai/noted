@@ -1,10 +1,10 @@
 ## What you get
 
-Noted opens an agent's HTML page or Markdown file in the thread's side panel and turns it into something you can mark up. Hover to see each element outlined, click one or select a run of text, and type what should change. Notes queue below the artifact, where you can edit or remove them, add a free-form message, and send the whole batch at once.
+Noted opens an agent's HTML page, Markdown file, or code diff in the thread's side panel and turns it into something you can mark up. Hover to see each element outlined, click one or select a run of text, and type what should change. Notes queue below the artifact, where you can edit or remove them, add a free-form message, and send the whole batch at once.
 
 ## How the feedback arrives
 
-The batch lands in the thread as one structured message. Each item names the element's selector, quotes the text you pointed at, and states your request, so the agent edits the right spot in place. Choose **Queue** or **Steer** to control how the message reaches an agent that is already running.
+The batch lands in the thread as one structured message. Each item names the element's selector, quotes the text you pointed at, and states your request, so the agent edits the right spot in place. For a diff, each item names the file path, the old or new side, and the line number. Choose **Queue** or **Steer** to control how the message reaches an agent that is already running.
 
 ## Revisions
 
